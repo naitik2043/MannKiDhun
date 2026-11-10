@@ -16,7 +16,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import cv2
-import mediapipe as mp
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 from flask import Flask, abort, jsonify, request, send_from_directory, session
@@ -438,6 +437,9 @@ class NoFaceDetected(ValueError):
 
 def _ensure_inference_components():
     global holistic, face_detector
+
+    if holistic is None or face_detector is None:
+        import mediapipe as mp
 
     if holistic is None:
         holistic = mp.solutions.holistic.Holistic(
