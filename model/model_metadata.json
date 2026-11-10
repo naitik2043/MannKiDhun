@@ -1,0 +1,13 @@
+{
+  "name": "MannKiDhun legacy landmark classifier",
+  "version": "legacy-landmark-1",
+  "format": "Keras HDF5",
+  "input_dimensions": 1020,
+  "output_labels": ["happy", "neutral", "susurprise", "rocrock", "angry", "sad"],
+  "architecture": ["Dense(512, relu)", "Dense(256, relu)", "Dense(6, softmax)"],
+  "preprocessing_version": "mediapipe-holistic-relative-xy-v1",
+  "model_sha256": "70c8a03100f8565673e7198b792805f166e7a739956cf0a97669956119216510",
+  "training_dataset_reference": null,
+  "model_creation_date": null,
+  "evaluation_metrics": null
+}
