@@ -1,1 +1,7 @@
 * text=auto eol=lf
+
+# Make GitHub Linguist classify the mixed Python and JavaScript app.
+*.py linguist-language=Python
+*.js linguist-language=JavaScript
+*.jsx linguist-language=JavaScript
+*.css linguist-language=CSS
