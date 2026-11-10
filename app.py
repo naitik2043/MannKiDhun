@@ -85,23 +85,31 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 PROFILE_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 PROFILE_IMAGE_MAX_DIMENSION = 4096
 PROFILE_IMAGE_MAX_PIXELS = 16_000_000
-model, labels = load_emotion_artifacts(
-    BASE_DIR / "model" / "model.h5",
-    BASE_DIR / "model" / "labels.npy",
-    BASE_DIR / "model" / "model_metadata.json",
-)
-holistic = mp.solutions.holistic.Holistic(
-    static_image_mode=True,
-    model_complexity=1,
-    min_detection_confidence=0.5,
-)
-face_detector = mp.solutions.face_detection.FaceDetection(
-    model_selection=0,
-    min_detection_confidence=0.5,
-)
+labels = np.load(BASE_DIR / "model" / "labels.npy", allow_pickle=False)
+holistic = None
+face_detector = None
 inference_lock = threading.Lock()
 assistant_rate_lock = threading.Lock()
 assistant_requests = defaultdict(deque)
+
+
+class LazyEmotionModel:
+    def __init__(self):
+        self._loaded_model = None
+
+    def predict(self, features, **options):
+        if self._loaded_model is None:
+            self._loaded_model, loaded_labels = load_emotion_artifacts(
+                BASE_DIR / "model" / "model.h5",
+                BASE_DIR / "model" / "labels.npy",
+                BASE_DIR / "model" / "model_metadata.json",
+            )
+            if not np.array_equal(labels, loaded_labels):
+                raise RuntimeError("Emotion labels changed while loading the model.")
+        return self._loaded_model.predict(features, **options)
+
+
+model = LazyEmotionModel()
 
 
 def _connect_database(database_path=AUTH_DATABASE, **options):
@@ -428,6 +436,22 @@ class NoFaceDetected(ValueError):
     pass
 
 
+def _ensure_inference_components():
+    global holistic, face_detector
+
+    if holistic is None:
+        holistic = mp.solutions.holistic.Holistic(
+            static_image_mode=True,
+            model_complexity=1,
+            min_detection_confidence=0.5,
+        )
+    if face_detector is None:
+        face_detector = mp.solutions.face_detection.FaceDetection(
+            model_selection=0,
+            min_detection_confidence=0.5,
+        )
+
+
 def predict_mood_scores(image_array):
     if image_array is None:
         raise ValueError("The uploaded image could not be decoded.")
@@ -436,6 +460,7 @@ def predict_mood_scores(image_array):
     rgb_image = cv2.cvtColor(mirrored_image, cv2.COLOR_BGR2RGB)
 
     with inference_lock:
+        _ensure_inference_components()
         detections = face_detector.process(rgb_image).detections or []
         if len(detections) > 1:
             raise FrameQualityError(
@@ -1561,3 +1586,4 @@ if __name__ == "__main__":
         debug=False,
         threaded=True,
     )
+
