@@ -1,0 +1,42 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+*.egg-info/
+
+# Node and frontend build output
+node_modules/
+frontend/dist/
+frontend/.vite/
+dist/
+
+# Local data and secrets
+instance/
+*.sqlite
+*.sqlite3
+*.db
+/model/emotion.npy
+.env
+.env.*
+!.env.example
+
+# Temporary files
+*.log
+*.tmp
+*.bak
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
