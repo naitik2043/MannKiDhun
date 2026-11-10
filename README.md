@@ -155,3 +155,5 @@ docs/                     API, architecture, database, deployment, and security 
 - [Security and privacy](docs/SECURITY.md)
 
 For public deployment, review [Deployment and operations](docs/DEPLOYMENT.md) first. The current configuration is intended for local development and is not production-ready.
+
+To create a Render demo, use the Blueprint in `render.yaml` and connect the `main` branch. It builds and serves both the frontend and API. This free demo uses temporary local storage, so account and library data may be lost when Render restarts or redeploys the service; review the [Render deployment notes](docs/DEPLOYMENT.md#render-free-demo-deployment) before sharing it with users.
