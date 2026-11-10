@@ -1,89 +1,78 @@
 # MannKiDhun
 
-**Every feeling has a tune.**
+**A more personal way to find music for the moment.**
 
-MannKiDhun is a music-discovery web application that pairs optional facial-expression estimates and user-selected vibes with music recommendations. It includes a React frontend, a Flask API, a SQLite catalogue and account store, and a pre-trained Keras model.
+[Open the live demo](https://mannkidhun.onrender.com) · [Deployment guide](docs/DEPLOYMENT.md) · [Security and privacy](docs/SECURITY.md)
 
-> **Important:** An expression estimate is not a measurement of a person's feelings, a diagnosis, or a substitute for their own choice. Camera use is optional; users can select a vibe manually.
+MannKiDhun is an open-source music discovery app with a **JavaScript/React frontend** and a **Python/Flask backend**. Choose a vibe yourself or optionally request an expression-based starting suggestion, then explore music that fits the moment.
 
-## Features
+> Camera use is off by default. An expression estimate is only a suggestion—not a measurement, diagnosis, or substitute for a person’s own choice.
 
-- **Discover (`/app`)** — Choose a vibe manually or explicitly enable the camera for a five-frame expression estimate. Camera access can be disabled at any time.
-- **Music assistant (`/assistant`)** — Search the local catalogue in natural language. The assistant can play catalogue tracks through YouTube, save tracks, create playlists, add tracks to playlists, and append tracks to a saved queue.
-- **Accounts and profile** — Sign up, sign in, update profile details, and change a password.
-- **Preferences and recommendations** — Store language, genre, listening-style, and artist preferences; the recommendation engine can use those preferences and listening activity.
-- **Music library APIs** — Manage saved songs, playlists, listening history, and playback-state data.
-- **Responsive web experience** — Home page, dashboard, profile settings, FAQs, and light/dark theme.
+## What you can do
 
-### Feature boundaries
+- Choose a mood manually or request an optional, five-frame expression check-in.
+- Explore mood-based recommendations and search the local music catalogue with the assistant.
+- Save tracks, create playlists, and manage listening history and playback state.
+- Set language, genre, listening-style, and artist preferences.
+- Use the responsive interface on desktop or mobile, with light and dark themes.
 
-The vibe-check page currently picks from configured YouTube recommendations; it is not a streaming service. Assistant suggestions come from the local catalogue and can be embedded from YouTube, subject to provider and browser restrictions. The saved queue stores track IDs; it is not a synchronized or cross-device player.
-
-The dashboard's featured playlists, categories, and recent-listening areas are placeholders. Password-reset and verification email delivery are not implemented, so account recovery is unavailable through a normal user flow. See [known limitations](#known-limitations) and the [deployment notes](docs/DEPLOYMENT.md) before hosting the app.
+**Feature boundaries:** playback uses YouTube links and embeds; this is not a music-streaming service. The saved queue stores track IDs and is not a synchronized player. Some dashboard sections are placeholders. Password-reset and verification emails are not configured.
 
 ## Technology
 
-- **Frontend:** React 18, Vite, Tailwind CSS, Vitest, and Testing Library
-- **Backend:** Flask, SQLite, and Python
-- **Expression analysis:** MediaPipe Holistic, OpenCV, and a Keras/TensorFlow model
-- **Music playback:** YouTube links and embedded YouTube players
+| Area | Technologies |
+| --- | --- |
+| Languages | Python, JavaScript/JSX, HTML, CSS |
+| Frontend | React 18, Vite, Tailwind CSS |
+| Backend | Flask, Gunicorn |
+| Data | SQLite |
+| Expression check-in | MediaPipe Holistic, OpenCV, Keras/TensorFlow |
+| Quality | unittest, Vitest, Testing Library |
 
 ## Requirements
 
 - Python 3.11
 - Node.js 20.19+ or 22.12+
-- A browser with camera support for expression analysis
-- Internet access for YouTube playback; camera access requires HTTPS or `localhost`
+- A modern browser; camera features require HTTPS or localhost
+- Internet access for YouTube playback
 
-## Install
+## Run locally
 
-Run these commands from the project root. On Windows, the virtual environment is placed under local application data because TensorFlow's deeply nested package paths may exceed Windows path limits in a long workspace path.
+Install the backend dependencies and frontend packages from the repository root. On Windows, a short virtual-environment path avoids TensorFlow’s long package paths:
 
 ```powershell
 $pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
 py -3.11 -m venv $pythonEnv
 & "$pythonEnv\Scripts\python.exe" -m pip install -r requirements.txt
-npm install
+npm ci
 ```
 
-The trained model and label files are included in `model\`. The app creates or updates its SQLite database at `instance\moodwave.sqlite3` when the Flask application starts. Back up an existing database before running updated code against it; schema changes are not managed by a versioned migration system.
-
-## Run locally
-
-Start the Flask API in one PowerShell terminal:
+Start Flask in one terminal:
 
 ```powershell
 $pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
 & "$pythonEnv\Scripts\python.exe" app.py
 ```
 
-The API listens at <http://127.0.0.1:5001> by default. In a second terminal, start Vite:
+Start the frontend in another terminal:
 
-```powershell
+```sh
 npm run dev
 ```
 
-Open the Vite URL shown in the terminal (normally <http://127.0.0.1:5173>). The Vite development server proxies `/api` and `/predict` to Flask. Create an account at `/signup`, then visit `/dashboard`, `/assistant`, or `/app`.
+Open the Vite address printed in the terminal (normally <http://127.0.0.1:5173>). The development server proxies `/api` and `/predict` to Flask at <http://127.0.0.1:5001>. Create an account at `/signup`, then explore `/app`, `/assistant`, or `/dashboard`.
 
-To use a Flask API at a different address, set `MANNKIDHUN_API_URL` before starting Vite. The legacy `MOODWAVE_API_URL` is also supported.
+For a stable local session key, set `MANNKIDHUN_SECRET_KEY` in the Flask terminal before starting the server. For HTTPS deployments, set `MANNKIDHUN_COOKIE_SECURE=1`. Keep secrets out of source control; configure them through the deployment platform.
 
-For local development, Flask generates a temporary session-signing key when `MANNKIDHUN_SECRET_KEY` is unset. Sessions will no longer be valid after a server restart. For a stable local session, set a private key in the server terminal before launching Flask:
-
-```powershell
-$env:MANNKIDHUN_SECRET_KEY = "<a long random secret>"
-```
-
-Set `MANNKIDHUN_COOKIE_SECURE=1` only when serving over HTTPS. The app does not load `.env` files automatically; configure environment variables through your shell or deployment platform.
-
-## Build, test, and evaluate
+## Build and test
 
 Build the production frontend:
 
-```powershell
+```sh
 npm run build
 ```
 
-Run the backend and frontend test suites:
+Run both test suites:
 
 ```powershell
 $pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
@@ -91,69 +80,29 @@ $pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
 npm test
 ```
 
-For local smoke testing, `python app.py` serves the built frontend at <http://127.0.0.1:5001>. This uses Flask's development server and is not a production server.
+The Flask development server is for local use only. Production deployments should use the WSGI command and platform configuration in `render.yaml`.
 
-`model_evaluation.py` calculates metrics for supplied predictions; it does not train the model or generate predictions. Its CSV must contain `subject_id,split,true_label,predicted_label` columns and at least one held-out test row. Include train, validation, and test rows to check subject separation across all splits:
+## Architecture
 
-```powershell
-$pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
-& "$pythonEnv\Scripts\python.exe" model_evaluation.py --predictions path\to\subject-separated-predictions.csv
-```
+- `app.py` serves the built frontend and provides the Flask API.
+- `frontend/src/` contains the React application.
+- `recommendation_engine.py` manages the catalogue, recommendations, playlists, and listening data.
+- `music_assistant.py` parses search intent locally; an optional provider can be configured.
+- `model_loader.py`, `frame_validation.py`, and `prediction_aggregation.py` handle model validation and expression-analysis requests.
+- `docs/` contains architecture, API, database, deployment, and security documentation.
 
-The evaluator rejects subjects that appear in more than one split and reports metrics for the held-out test split. Record dataset provenance, licensing, capture conditions, and split methodology before treating results as a model benchmark.
+## Privacy and responsible use
 
-## Optional assistant provider
+The browser requests camera access only after the user enables the camera and asks for an expression check. It sends five frames to the backend for inference; this endpoint processes them in memory and does not save them to disk. The optional text-intent provider receives only the current assistant message—not camera frames, credentials, or listening history.
 
-By default, the assistant uses local rules to extract search intent. To use an OpenAI-compatible intent provider, configure these variables in the Flask server environment:
+The model’s scores are not calibrated probabilities, and its performance has not been established on a labeled, subject-separated evaluation dataset. Do not use its output for medical, diagnostic, employment, or other consequential decisions. See [Security and privacy](docs/SECURITY.md) for deployment considerations.
 
-- `AI_ASSISTANT_API_KEY` — provider key; keep it server-side and out of source control.
-- `AI_ASSISTANT_API_URL` — provider endpoint; HTTPS is required except for loopback development endpoints.
-- `AI_ASSISTANT_MODEL` — provider model name.
+## Deploy on Render
 
-When configured, only the user's current assistant message is sent to the provider for structured intent extraction. Preferences and listening history are not sent. Provider errors fall back to local intent parsing. The provider does not generate song listings or playback links; recommendations are restricted to catalogue entries.
+The repository includes a Render Blueprint. Connect the `main` branch and deploy `render.yaml); the Blueprint builds the frontend and starts Flask with Gunicorn. See the [deployment and operations guide](docs/DEPLOYMENT.md) before sharing the demo.
 
-## Expression analysis and privacy
+The current Free service is suitable for a demo: its local SQLite database and profile files are temporary and may be lost when the service restarts or redeploys. Free instances also spin down when idle. Use durable storage and an appropriate plan before relying on user data.
 
-The included model accepts 1,020 landmark values and returns six class scores. Its labels are `happy`, `neutral`, `surprise`, `rock`, `angry`, and `sad` after the API normalizes two legacy label names. MediaPipe Holistic supplies 468 face landmarks and up to 21 landmarks for each hand. The preprocessing is tied to the existing model; changing it or replacing the model requires compatible training and evaluation.
+## License
 
-The browser captures five JPEG frames only after the user enables the camera and requests an analysis. It sends those frames to the Flask `/predict` endpoint for backend-side inference. Frames are processed in request memory and are not written to disk by this endpoint. The browser clears its temporary image data when the request completes and stops the camera when it is disabled or the analysis page is left. The optional assistant provider receives text only, not camera frames, account credentials, or listening history.
-
-The backend rejects frames that fail face-detection or basic image-quality checks, and requires at least three usable frames for a multi-frame request. It averages the valid frame scores and asks the user to retry when frame predictions are too inconsistent. These quality checks are heuristics, and scores are not calibrated probabilities of a person's emotional state.
-
-## Known limitations
-
-- No labeled, subject-separated evaluation dataset is included. Accuracy, precision, recall, F1, demographic performance, hand-feature impact, and end-to-end performance have not been established.
-- Confidence scores are not calibrated. Face quality checks do not reliably detect occlusion or extreme pose.
-- Inference runs on the Flask backend, not in the browser. The legacy MediaPipe Holistic API is used.
-- Password reset and email verification delivery are not configured.
-- The database is local SQLite; there is no versioned migration framework, automated backup, or restore service.
-- A production WSGI server, distributed rate limiting, and production monitoring are not included. GitHub Actions runs the test suites and frontend build, but does not deploy the app.
-
-Do not use expression estimates for medical, diagnostic, employment, or other consequential decisions. See [Security and privacy](docs/SECURITY.md) for additional deployment gaps.
-
-## Project layout
-
-```text
-app.py                    Flask application and API routes
-recommendation_engine.py  Catalogue, recommendation, and library operations
-music_assistant.py        Rule-based and optional provider intent parsing
-model_loader.py           Model and metadata validation
-prediction_aggregation.py Multi-frame prediction aggregation
-frame_validation.py       Camera-frame quality checks
-model_evaluation.py       Metrics for supplied held-out predictions
-frontend/src/             React pages, components, hooks, and styles
-tests/                    Python and frontend tests
-docs/                     API, architecture, database, deployment, and security notes
-```
-
-## Documentation
-
-- [Architecture](docs/ARCHITECTURE.md)
-- [API reference](docs/API_DOCUMENTATION.md)
-- [Database notes](docs/DATABASE.md)
-- [Deployment and operations](docs/DEPLOYMENT.md)
-- [Security and privacy](docs/SECURITY.md)
-
-For public deployment, review [Deployment and operations](docs/DEPLOYMENT.md) first. The current configuration is intended for local development and is not production-ready.
-
-To create a Render demo, use the Blueprint in `render.yaml` and connect the `main` branch. It builds and serves both the frontend and API. This free demo uses temporary local storage, so account and library data may be lost when Render restarts or redeploys the service; review the [Render deployment notes](docs/DEPLOYMENT.md#render-free-demo-deployment) before sharing it with users.
+Distributed under the [MIT License](LICENSE).
