@@ -10,6 +10,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,11 +32,11 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      - name: Build frontend
+        run: npm run build
+
       - name: Run backend tests
         run: python -m unittest discover -s tests
 
       - name: Run frontend tests
         run: npm test
-
-      - name: Build frontend
-        run: npm run build
