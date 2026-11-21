@@ -2123,6 +2123,40 @@ def playlist_tracks_reorder(playlist_id):
     return jsonify({"playlist": updated})
 
 
+MOOD_AFFECT_MAP = {
+    "happy": (0.85, 0.75),
+    "sad": (0.20, -0.85),
+    "angry": (0.95, -0.65),
+    "neutral": (0.45, 0.0),
+    "surprise": (0.90, 0.35),
+    "romantic": (0.45, 0.55),
+    "relaxed": (0.20, 0.30),
+    "energetic": (1.0, 0.55),
+    "motivational": (0.90, 0.45),
+    "focused": (0.20, 0.15),
+    "devotional": (0.15, 0.40),
+}
+
+
+def build_mood_transition_path(source_mood, target_mood):
+    """Choose a transparent bridge mood using catalogue mood coordinates."""
+    source = source_mood if source_mood in MOOD_AFFECT_MAP else "neutral"
+    target = target_mood if target_mood in MOOD_AFFECT_MAP else "neutral"
+    if source == target:
+        return [source, target]
+    start, end = MOOD_AFFECT_MAP[source], MOOD_AFFECT_MAP[target]
+    midpoint = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+    candidates = [mood for mood in MOOD_AFFECT_MAP if mood not in {source, target}]
+    bridge = min(
+        candidates,
+        key=lambda mood: (
+            (MOOD_AFFECT_MAP[mood][0] - midpoint[0]) ** 2
+            + (MOOD_AFFECT_MAP[mood][1] - midpoint[1]) ** 2
+        ),
+    )
+    return [source, bridge, target]
+
+
 @app.route("/api/v1/users/me/adaptive-session", methods=["POST"])
 def create_adaptive_session():
     user = get_authenticated_user()
@@ -2134,6 +2168,7 @@ def create_adaptive_session():
 
     mode = payload.get("mode", "match")
     mood = payload.get("mood")
+    source_mood = payload.get("source_mood", "neutral")
     use_preferences = payload.get("use_preferences", True)
     use_history = payload.get("use_history", False)
     if not isinstance(mode, str) or mode not in {"match", "change", "explore"}:
@@ -2145,6 +2180,12 @@ def create_adaptive_session():
         return jsonify({"error": "Choose a supported mood."}), 400
     if mode == "change" and not mood:
         return jsonify({"error": "Choose a target mood for Change mode."}), 400
+    if mode == "change" and (
+        not isinstance(source_mood, str) or source_mood.strip().lower() not in allowed_moods
+    ):
+        return jsonify({"error": "Choose a supported starting mood for Change mode."}), 400
+    if isinstance(source_mood, str):
+        source_mood = source_mood.strip().lower()
     context = payload.get("context")
     if context == "":
         context = None
@@ -2169,18 +2210,60 @@ def create_adaptive_session():
         else (mood or CONTEXT_VIBE_FALLBACK.get(context, "neutral"))
     )
     query_filters = {"vibe": vibe} if mode != "explore" and mood else None
-    recommendations = get_user_recommendations(
-        str(AUTH_DATABASE),
-        user_id=user["id"],
-        mood=vibe,
-        vibe=vibe,
-        limit=limit,
-        include_preferences=use_preferences,
-        include_history=use_history,
-        query_filters=query_filters,
-        context=context,
-    )
-    if not recommendations:
+    journey = []
+    recommendations = []
+    if mode == "change":
+        transition_path = build_mood_transition_path(source_mood, vibe)
+        stage_count = len(transition_path)
+        base_count, remainder = divmod(limit, stage_count)
+        seen_ids = set()
+        for stage_index, stage_mood in enumerate(transition_path):
+            stage_limit = max(1, base_count + (1 if stage_index < remainder else 0))
+            stage_tracks = get_user_recommendations(
+                str(AUTH_DATABASE),
+                user_id=user["id"],
+                mood=stage_mood,
+                vibe=stage_mood,
+                limit=stage_limit + 2,
+                include_preferences=use_preferences,
+                include_history=use_history,
+                query_filters={"vibe": stage_mood},
+                context=context,
+                exclude_song_ids=seen_ids,
+            )
+            if not stage_tracks:
+                stage_tracks = get_user_recommendations(
+                    str(AUTH_DATABASE),
+                    user_id=user["id"],
+                    mood=stage_mood,
+                    vibe=stage_mood,
+                    limit=stage_limit,
+                    include_preferences=use_preferences,
+                    include_history=use_history,
+                    context=context,
+                    exclude_song_ids=seen_ids,
+                )
+            stage_tracks = stage_tracks[:stage_limit]
+            journey.append({
+                "step": stage_index + 1,
+                "mood": stage_mood,
+                "label": "Starting point" if stage_index == 0 else (
+                    "Destination" if stage_index == stage_count - 1 else "Bridge"
+                ),
+                "track_count": len(stage_tracks),
+            })
+            for track in stage_tracks:
+                track["journey_stage"] = stage_index + 1
+                track["journey_mood"] = stage_mood
+                track["journey_path"] = transition_path
+                track["explanation"] = (
+                    f"Journey step {stage_index + 1}: {stage_mood.title()} "
+                    f"on your way from {source_mood.title()} to {vibe.title()}. "
+                    + str(track.get("explanation") or "")
+                ).strip()
+                seen_ids.add(str(track["id"]))
+                recommendations.append(track)
+    else:
         recommendations = get_user_recommendations(
             str(AUTH_DATABASE),
             user_id=user["id"],
@@ -2189,8 +2272,21 @@ def create_adaptive_session():
             limit=limit,
             include_preferences=use_preferences,
             include_history=use_history,
+            query_filters=query_filters,
             context=context,
         )
+        if not recommendations:
+            recommendations = get_user_recommendations(
+                str(AUTH_DATABASE),
+                user_id=user["id"],
+                mood=vibe,
+                vibe=vibe,
+                limit=limit,
+                include_preferences=use_preferences,
+                include_history=use_history,
+                context=context,
+            )
+    recommendations = recommendations[:limit]
     queue = [int(track["id"]) for track in recommendations if isinstance(track.get("id"), int)]
     state = save_playback_state(
         str(AUTH_DATABASE),
@@ -2200,10 +2296,105 @@ def create_adaptive_session():
     return jsonify({
         "mode": mode,
         "mood": vibe,
+        "source_mood": source_mood if mode == "change" else None,
         "context": context,
+        "journey": journey,
         "recommendations": recommendations,
         "state": state,
-        "message": "Your session is ready. New Like and Not for me feedback will shape the next session you build.",
+        "message": (
+            "Your gradual mood journey is ready." if mode == "change"
+            else "Your session is ready. Feedback can adapt the queue while you listen."
+        ),
+    })
+
+
+@app.route("/api/v1/users/me/adaptive-session/feedback", methods=["POST"])
+def adaptive_session_feedback():
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to adapt your listening session."}), 401
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Provide session feedback in JSON format."}), 400
+    try:
+        song_id = int(payload.get("song_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Provide a valid track id."}), 400
+    event_type = payload.get("event_type")
+    if event_type not in {"like", "skip"}:
+        return jsonify({"error": "Session feedback must be like or skip."}), 400
+    queue = payload.get("queue", [])
+    played_ids = payload.get("played_ids", [])
+    if not isinstance(queue, list) or len(queue) > 50 or not isinstance(played_ids, list) or len(played_ids) > 50:
+        return jsonify({"error": "Session track lists must be arrays of up to 50 ids."}), 400
+    try:
+        queue_ids = [int(item.get("id") if isinstance(item, dict) else item) for item in queue]
+        played = {int(item) for item in played_ids}
+    except (TypeError, ValueError):
+        return jsonify({"error": "Session track ids must be valid integers."}), 400
+    if song_id not in queue_ids:
+        return jsonify({"error": "That track is not part of the active session."}), 409
+    mood = payload.get("mood", "neutral")
+    mode = payload.get("mode", "match")
+    context = payload.get("context")
+    use_preferences = payload.get("use_preferences", True)
+    if not isinstance(mood, str) or mood.strip().lower() not in MOOD_AFFECT_MAP:
+        return jsonify({"error": "Choose a supported session mood."}), 400
+    if mode not in {"match", "change", "explore"}:
+        return jsonify({"error": "Choose Match, Change, or Explore mode."}), 400
+    if type(use_preferences) is not bool:
+        return jsonify({"error": "Personalisation choice must be true or false."}), 400
+    if context == "":
+        context = None
+    if context is not None and context not in ALLOWED_LISTENING_CONTEXTS:
+        return jsonify({"error": "Choose a supported listening context."}), 400
+    if not record_user_interaction(
+        str(AUTH_DATABASE), user["id"], song_id, event_type, source="adaptive-session"
+    ):
+        return jsonify({"error": "Could not save your session feedback."}), 400
+
+    current_index = queue_ids.index(song_id)
+    remaining_ids = [
+        item for item in queue_ids[current_index + 1:]
+        if item not in played and item != song_id
+    ]
+    excluded_ids = played | {song_id}
+    recommendations = get_user_recommendations(
+        str(AUTH_DATABASE),
+        user_id=user["id"],
+        mood=None if mode == "explore" else mood,
+        vibe="neutral" if mode == "explore" else mood,
+        limit=12,
+        include_preferences=use_preferences,
+        include_history=True,
+        context=context,
+        exclude_song_ids=excluded_ids,
+    )
+    by_id = {int(item["id"]): item for item in recommendations if item.get("id") is not None}
+    refreshed = [by_id[item] for item in remaining_ids if item in by_id]
+    used = {int(item["id"]) for item in refreshed}
+    refreshed.extend(
+        item for item in recommendations
+        if int(item["id"]) not in used and int(item["id"]) not in excluded_ids
+    )
+    refreshed = refreshed[:12]
+    state = save_playback_state(
+        str(AUTH_DATABASE),
+        user["id"],
+        {
+            "current_song_id": song_id,
+            "position_ms": max(0, int(payload.get("position_ms", 0) or 0)),
+            "queue": [song_id] + [int(item["id"]) for item in refreshed],
+            "shuffle": False,
+            "repeat_mode": "off",
+        },
+    )
+    return jsonify({
+        "status": "ok",
+        "interaction": event_type,
+        "remaining": refreshed,
+        "state": state,
+        "message": "Your remaining queue was refreshed using your latest feedback.",
     })
 
 
@@ -2294,6 +2485,15 @@ def refine_playlist(playlist_id):
             ).fetchall()
         ]
     intent, intent_provider = extract_music_intent(command, known_artists)
+    calmer_terms = ("calmer", "calm down", "more calm", "softer", "more peaceful", "less intense", "less energetic")
+    energetic_terms = ("more energetic", "more upbeat", "more lively", "higher energy")
+    variety_terms = ("new artists", "different artists", "more variety", "discover artists")
+    if any(term in normalized for term in calmer_terms):
+        intent["mood"] = "relaxed"
+    elif any(term in normalized for term in energetic_terms):
+        intent["mood"] = "energetic"
+    if any(term in normalized for term in variety_terms):
+        intent["artist"] = None
     context_vibes = {"studying": "focused", "travelling": "energetic", "evening": "relaxed", "workout": "energetic", "sleep": "relaxed"}
     vibe = intent["mood"] or context_vibes.get(intent["context"], "neutral")
     filters = {key: intent[key] for key in ("genre", "language", "artist") if intent.get(key)}
@@ -2317,18 +2517,22 @@ def refine_playlist(playlist_id):
 
     existing_ids = {int(track["id"]) for track in track_list}
     existing_artists = {str(track.get("artist") or "").casefold() for track in track_list}
-    prefer_new_artists = any(term in normalized for term in ("new artists", "different artists", "more variety"))
+    prefer_new_artists = any(term in normalized for term in ("new artists", "different artists", "more variety", "discover artists"))
     additions = []
     for track in recommendations:
         if len(additions) >= 5:
             break
+        artist_name = str(track.get("artist") or "").casefold()
         if int(track["id"]) in existing_ids:
             continue
-        if prefer_new_artists and str(track.get("artist") or "").casefold() in existing_artists:
+        if prefer_new_artists and artist_name in existing_artists:
             continue
         updated = add_song_to_playlist(str(AUTH_DATABASE), user["id"], playlist_id, int(track["id"]))
         if updated is not None:
             additions.append(track)
+            existing_ids.add(int(track["id"]))
+            if artist_name:
+                existing_artists.add(artist_name)
     updated_playlist = get_playlist_details(str(AUTH_DATABASE), playlist_id, user_id=user["id"])
     return jsonify({
         "playlist": updated_playlist,
