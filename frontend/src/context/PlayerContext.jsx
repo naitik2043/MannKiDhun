@@ -500,7 +500,7 @@ export function PlayerProvider({ children }) {
 function GlobalPlayerBar({ containerRef }) {
   const player = usePlayer();
   const { currentSong, isPlaying, positionMs, repeatMode, error } = player;
-  const hidden = !currentSong;
+  const hidden = !currentSong && !error;
   const durationMs = currentSong && Number.isFinite(currentSong.duration) ? currentSong.duration * 1000 : 0;
   const progressMax = durationMs || Math.max(positionMs, 60000);
   return (

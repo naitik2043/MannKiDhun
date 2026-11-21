@@ -115,9 +115,11 @@ describe("PlayerProvider", () => {
   it("retries loading the YouTube API after a script failure", async () => {
     delete window.YT;
     const firstRender = render(<PlayerProvider><PlayerProbe /></PlayerProvider>);
-    const firstScript = await waitFor(() =>
-      document.querySelector('script[data-mannkidhun-youtube-api="true"]'),
-    );
+    const firstScript = await waitFor(() => {
+      const script = document.querySelector('script[data-mannkidhun-youtube-api="true"]');
+      expect(script).not.toBeNull();
+      return script;
+    });
 
     fireEvent.error(firstScript);
     await waitFor(() => {
@@ -127,9 +129,11 @@ describe("PlayerProvider", () => {
     firstRender.unmount();
 
     render(<PlayerProvider><PlayerProbe /></PlayerProvider>);
-    const retryScript = await waitFor(() =>
-      document.querySelector('script[data-mannkidhun-youtube-api="true"]'),
-    );
+    const retryScript = await waitFor(() => {
+      const script = document.querySelector('script[data-mannkidhun-youtube-api="true"]');
+      expect(script).not.toBeNull();
+      return script;
+    });
     expect(retryScript).not.toBe(firstScript);
 
     window.YT = {
