@@ -17,6 +17,7 @@ import SiteFooter from "./components/SiteFooter.jsx";
 import { useCamera } from "./hooks/useCamera.js";
 import { useMoodDetection } from "./hooks/useMoodDetection.js";
 import { useTheme } from "./hooks/useTheme.js";
+import { PlayerProvider } from "./context/PlayerContext.jsx";
 
 function MoodExperience({ user, theme, toggleTheme }) {
   const videoRef = useRef(null);
@@ -148,7 +149,7 @@ function AuthenticatedPage({ theme, toggleTheme, Page }) {
   return <Page user={user} theme={theme} toggleTheme={toggleTheme} />;
 }
 
-function App() {
+function AppRoutes() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const { theme, toggleTheme } = useTheme();
 
@@ -156,16 +157,21 @@ function App() {
     const inviteParams = new URLSearchParams(window.location.search);
     const invitePlaylist = inviteParams.get("invite_playlist");
     const inviteToken = inviteParams.get("invite_token");
+    const roomToken = inviteParams.get("room_token");
     if (invitePlaylist && inviteToken) {
       window.sessionStorage.setItem(
         "mannkidhun_pending_playlist_invite",
         window.location.search,
       );
     }
+    if (roomToken) {
+      window.sessionStorage.setItem("mannkidhun_room_token", roomToken);
+    }
   }
 
   useEffect(() => {
     const pendingInvite = window.sessionStorage.getItem("mannkidhun_pending_playlist_invite");
+    const pendingRoomToken = window.sessionStorage.getItem("mannkidhun_room_token");
     if (
       pendingInvite &&
       path !== "/assistant" &&
@@ -173,6 +179,15 @@ function App() {
       path !== "/signup"
     ) {
       window.location.replace("/assistant" + pendingInvite);
+      return;
+    }
+    if (
+      pendingRoomToken &&
+      path !== "/assistant" &&
+      path !== "/signin" &&
+      path !== "/signup"
+    ) {
+      window.location.replace("/assistant?room_token=" + encodeURIComponent(pendingRoomToken));
     }
   }, [path]);
 
@@ -240,6 +255,14 @@ function App() {
     );
   }
   return <HomePage theme={theme} onToggleTheme={toggleTheme} />;
+}
+
+function App() {
+  return (
+    <PlayerProvider>
+      <AppRoutes />
+    </PlayerProvider>
+  );
 }
 
 export default App;

@@ -1,0 +1,116 @@
+.global-player {
+  position: fixed;
+  z-index: 60;
+  right: 18px;
+  bottom: 16px;
+  left: 18px;
+  display: grid;
+  grid-template-columns: 240px minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 18px;
+  background: rgba(18, 17, 27, 0.96);
+  color: #f5f3ff;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(16px);
+}
+.global-player-empty {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.global-player-video {
+  width: 240px;
+  min-height: 135px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #09090f;
+}
+.global-player-video iframe {
+  display: block;
+  width: 240px;
+  height: 135px;
+  border: 0;
+}
+.global-player-details {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.global-player-details strong,
+.global-player-details span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.global-player-kicker {
+  margin: 0;
+  color: #bca8ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+.global-player-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  color: #c7c2d6;
+  font-size: 11px;
+}
+.global-player-progress input {
+  flex: 1;
+  min-width: 80px;
+}
+.global-player-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.global-player-actions button,
+.global-player-actions select {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid rgba(196, 181, 253, 0.28);
+  border-radius: 9px;
+  background: rgba(139, 92, 246, 0.18);
+  color: inherit;
+  font-size: 12px;
+}
+.global-player-error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .global-player {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px;
+  }
+  .global-player-video,
+  .global-player-video iframe {
+    width: 112px;
+    min-height: 63px;
+    height: 63px;
+  }
+  .global-player-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .global-player-details strong {
+    font-size: 13px;
+  }
+  .global-player-details span {
+    font-size: 11px;
+  }
+}

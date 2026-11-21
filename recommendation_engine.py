@@ -1304,7 +1304,8 @@ def get_playlist_details(database_path, playlist_id, user_id=None):
         tracks = connection.execute(
             """
             SELECT s.id, s.title, a.name AS artist, s.album, s.language, s.genre,
-                   s.provider_url, s.thumbnail_url, pt.position
+                   s.provider_url, s.thumbnail_url, pt.position, s.provider,
+                   s.provider_track_id, s.duration
             FROM playlist_tracks pt
             JOIN songs s ON s.id = pt.song_id
             LEFT JOIN artists a ON a.id = s.artist_id
@@ -1333,6 +1334,9 @@ def get_playlist_details(database_path, playlist_id, user_id=None):
                     "provider_url": track[6],
                     "thumbnail_url": track[7],
                     "position": track[8],
+                    "provider": track[9],
+                    "provider_track_id": track[10],
+                    "duration": track[11],
                 }
                 for track in tracks
             ],

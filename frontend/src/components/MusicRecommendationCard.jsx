@@ -1,10 +1,24 @@
+import { usePlayer } from "../context/PlayerContext.jsx";
+
 function MusicRecommendationCard({ mood, songId, moodSource }) {
   const songUrl = songId
     ? `https://www.youtube.com/watch?v=${songId}`
     : "";
-  const embedUrl = songId
-    ? `https://www.youtube-nocookie.com/embed/${songId}?autoplay=1&playsinline=1`
-    : "";
+  const player = usePlayer();
+  function playMoodTrack() {
+    if (!songId) return;
+    const track = {
+      id: `mood-${mood}-${songId}`,
+      title: `A little ${mood} in the mix`,
+      artist: "MannKiDhun",
+      provider: "youtube",
+      provider_track_id: songId,
+      provider_url: songUrl,
+    };
+    if (!player.playSong(track)) {
+      window.open(songUrl, "_blank", "noopener,noreferrer");
+    }
+  }
   const searchUrl = mood
     ? `https://www.youtube.com/results?search_query=${encodeURIComponent(`${mood} mood music`)}`
     : "";
@@ -34,15 +48,16 @@ function MusicRecommendationCard({ mood, songId, moodSource }) {
           <span className="floating-note note-right">♪</span>
         </div>
       ) : (
-        <div className="music-player">
-          <iframe
-            key={songId}
-            src={embedUrl}
-            title={`Music recommendation for ${mood}`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
+        <div className="music-visual music-visual-ready">
+          <div className="music-orbit orbit-one" />
+          <div className="music-orbit orbit-two" />
+          <div className="music-orbit orbit-three" />
+          <div className="music-note">♫</div>
+          <span className="floating-note note-left">♪</span>
+          <span className="floating-note note-right">♪</span>
+          <button type="button" className="camera-action-button mt-3" onClick={playMoodTrack}>
+            Play this mood mix
+          </button>
         </div>
       )}
 

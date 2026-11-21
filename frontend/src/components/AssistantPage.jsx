@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Header from "./Header.jsx";
 import SiteFooter from "./SiteFooter.jsx";
+import { usePlayer } from "../context/PlayerContext.jsx";
 
 const suggestedPrompts = [
   "Suggest something peaceful for the evening",
@@ -41,7 +42,19 @@ function AssistantPage({ user, theme, toggleTheme }) {
     return supportedMoods.includes(moodFromCheckIn) ? moodFromCheckIn : "";
   });
   const [currentContext, setCurrentContext] = useState("");
+  const [sourceMood, setSourceMood] = useState(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("mood")?.toLowerCase();
+    return supportedMoods.includes(fromUrl) ? fromUrl : "neutral";
+  });
   const [targetMood, setTargetMood] = useState("relaxed");
+  const [roomToken, setRoomToken] = useState("");
+  const [room, setRoom] = useState(null);
+  const [roomPlaylist, setRoomPlaylist] = useState(null);
+  const [roomInviteUrl, setRoomInviteUrl] = useState("");
+  const roomVersionRef = useRef(null);
+  const roomSnapshotRef = useRef(null);
+  const playerSnapshotRef = useRef(null);
+  const player = usePlayer();
   const [isPublicPlaylist, setIsPublicPlaylist] = useState(false);
   const [refinePlaylistId, setRefinePlaylistId] = useState("");
   const [collaboratorsByPlaylist, setCollaboratorsByPlaylist] = useState({});
@@ -62,6 +75,8 @@ function AssistantPage({ user, theme, toggleTheme }) {
       const params = new URLSearchParams(window.location.search);
       const invitePlaylist = params.get("invite_playlist");
       const inviteToken = params.get("invite_token");
+      const pendingRoomToken = params.get("room_token")
+        || window.sessionStorage.getItem("mannkidhun_room_token");
 
       if (invitePlaylist && inviteToken && /^\\d+$/.test(invitePlaylist)) {
         try {
@@ -86,6 +101,30 @@ function AssistantPage({ user, theme, toggleTheme }) {
         }
       }
 
+      if (pendingRoomToken) {
+        try {
+          const joined = await fetch(
+            `/api/v1/listening-rooms/${encodeURIComponent(pendingRoomToken)}/join`,
+            { method: "POST" },
+          );
+          const roomResult = await joined.json().catch(() => null);
+          if (!joined.ok) throw new Error(roomResult?.error || "Could not join this listening room.");
+          if (active) {
+            setRoomToken(pendingRoomToken);
+            setRoom(roomResult.room);
+            setRoomPlaylist(roomResult.playlist);
+            setRoomInviteUrl(window.location.origin + "/assistant?room_token=" + pendingRoomToken);
+            roomVersionRef.current = roomResult.room.version;
+            window.sessionStorage.setItem("mannkidhun_room_token", pendingRoomToken);
+            setActionStatus(`You joined the group listening room for ${roomResult.playlist.name}.`);
+          }
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (roomError) {
+          window.sessionStorage.removeItem("mannkidhun_room_token");
+          if (active) setError(roomError.message || "Could not join this listening room.");
+        }
+      }
+
       try {
         const response = await fetch("/api/v1/playlists");
         const result = await response.json().catch(() => null);
@@ -106,6 +145,107 @@ function AssistantPage({ user, theme, toggleTheme }) {
     if (recognitionRef.current) recognitionRef.current.stop();
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
+
+  useEffect(() => {
+    roomSnapshotRef.current = { room, roomPlaylist, userId: user.id };
+  }, [room, roomPlaylist, user.id]);
+
+  useEffect(() => {
+    playerSnapshotRef.current = player;
+  }, [player]);
+
+  useEffect(() => {
+    if (!roomToken) return undefined;
+    let active = true;
+    async function pollRoom() {
+      try {
+        const response = await fetch(`/api/v1/listening-rooms/${encodeURIComponent(roomToken)}`);
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error || "Could not refresh the listening room.");
+        if (!active) return;
+        const nextRoom = result.room;
+        const previousVersion = roomVersionRef.current;
+        const changed = previousVersion !== null && nextRoom.version > previousVersion;
+        roomVersionRef.current = nextRoom.version;
+        setRoom(nextRoom);
+        const snapshot = roomSnapshotRef.current;
+        const livePlayer = playerSnapshotRef.current;
+        if (
+          changed &&
+          nextRoom.state?.updated_by !== snapshot?.userId &&
+          snapshot?.roomPlaylist?.tracks?.length
+        ) {
+          const tracks = snapshot.roomPlaylist.tracks.filter((track) => (
+            track.provider === "youtube" && typeof track.provider_track_id === "string"
+          ));
+          const index = tracks.findIndex(
+            (track) => Number(track.id) === Number(nextRoom.state.current_song_id),
+          );
+          if (index >= 0) {
+            livePlayer.playQueue(tracks, index);
+            window.setTimeout(() => {
+              livePlayer.seekTo(Number(nextRoom.state.position_ms || 0));
+              if (!nextRoom.state.is_playing) livePlayer.pausePlayback();
+            }, 1200);
+          } else if (!nextRoom.state.current_song_id) {
+            livePlayer.pausePlayback();
+          }
+        }
+      } catch (roomError) {
+        if (active) setError(roomError.message || "The group listening room could not be refreshed.");
+      }
+    }
+    pollRoom();
+    const timer = window.setInterval(pollRoom, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [roomToken]);
+
+  useEffect(() => {
+    if (!roomToken) return undefined;
+    const timer = window.setInterval(async () => {
+      const snapshot = roomSnapshotRef.current;
+      const livePlayer = playerSnapshotRef.current;
+      if (!snapshot?.room?.is_owner || !snapshot.roomPlaylist || !livePlayer?.currentSong) return;
+      const allowed = new Set(snapshot.roomPlaylist.tracks.map((track) => Number(track.id)));
+      const currentId = Number(livePlayer.currentSong.id);
+      if (!Number.isInteger(currentId) || !allowed.has(currentId)) return;
+      const queue = livePlayer.queue
+        .map((track) => Number(track.id))
+        .filter((id) => Number.isInteger(id) && allowed.has(id));
+      try {
+        const response = await fetch(
+          `/api/v1/listening-rooms/${encodeURIComponent(roomToken)}/state`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              expected_version: roomVersionRef.current,
+              state: {
+                current_song_id: currentId,
+                position_ms: livePlayer.positionMs,
+                is_playing: livePlayer.isPlaying,
+                queue: queue.length ? queue : [currentId],
+              },
+            }),
+          },
+        );
+        const result = await response.json().catch(() => null);
+        if (response.status === 409 && Number.isInteger(result?.version)) {
+          roomVersionRef.current = result.version;
+          return;
+        }
+        if (!response.ok) throw new Error(result?.error || "Could not sync group playback.");
+        roomVersionRef.current = result.room.version;
+        setRoom(result.room);
+      } catch (syncError) {
+        setError(syncError.message || "Could not sync group playback.");
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [roomToken]);
 
   async function ask(prompt = message) {
     const text = prompt.trim();
@@ -163,6 +303,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
         body: JSON.stringify({
           mode,
           mood: mode === "change" ? targetMood : currentMood || null,
+          source_mood: mode === "change" ? sourceMood : null,
           use_preferences: usePreferences,
           use_history: useHistory,
           context: currentContext || null,
@@ -306,7 +447,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
     if (index < 0 || index >= sessionTracks.length) return;
     const song = sessionTracks[index];
     setSessionIndex(index);
-    playSong(song);
+    if (!player.playQueue(sessionTracks, index)) playSong(song);
     try {
       const { state } = await requestJson("/api/v1/users/me/playback-state");
       await requestJson("/api/v1/users/me/playback-state", {
@@ -321,6 +462,52 @@ function AssistantPage({ user, theme, toggleTheme }) {
       });
     } catch (requestError) {
       setError(requestError.message);
+    }
+  }
+
+  async function startListeningRoom(playlist) {
+    setError("");
+    setActionStatus("");
+    try {
+      const created = await requestJson(`/api/v1/playlists/${playlist.id}/listening-room`, {
+        method: "POST",
+      });
+      const token = created.room_token;
+      const joined = await requestJson(`/api/v1/listening-rooms/${encodeURIComponent(token)}/join`, {
+        method: "POST",
+      });
+      setRoomToken(token);
+      setRoom(joined.room);
+      setRoomPlaylist(joined.playlist);
+      setRoomInviteUrl(created.invite_url);
+      roomVersionRef.current = joined.room.version;
+      window.sessionStorage.setItem("mannkidhun_room_token", token);
+      try {
+        await navigator.clipboard.writeText(created.invite_url);
+        setActionStatus("Group listening room started. Invite link copied.");
+      } catch {
+        setActionStatus("Group listening room started. Share the invite link shown below.");
+      }
+    } catch (roomError) {
+      setError(roomError.message || "Could not start the group listening room.");
+    }
+  }
+
+  async function closeListeningRoom() {
+    if (!roomToken) return;
+    try {
+      await requestJson(`/api/v1/listening-rooms/${encodeURIComponent(roomToken)}`, {
+        method: "DELETE",
+      });
+      window.sessionStorage.removeItem("mannkidhun_room_token");
+      setRoomToken("");
+      setRoom(null);
+      setRoomPlaylist(null);
+      setRoomInviteUrl("");
+      roomVersionRef.current = null;
+      setActionStatus("The group listening room was closed.");
+    } catch (roomError) {
+      setError(roomError.message || "Could not close the listening room.");
     }
   }
 
@@ -391,6 +578,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
       if (!queue.some((entry) => Number(entry?.id ?? entry) === song.id)) {
         queue.push(song.id);
       }
+      player.addToQueue(song);
       await requestJson("/api/v1/users/me/playback-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -420,20 +608,49 @@ function AssistantPage({ user, theme, toggleTheme }) {
     setError("");
     setActionStatus("");
     try {
-      await requestJson("/api/v1/users/me/listening-history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          song_id: song.id,
-          event_type: eventType,
-          source: "assistant",
-        }),
-      });
-      setActionStatus(
-        eventType === "like"
-          ? "Thanks — your positive feedback has been saved."
-          : "Thanks — this track will be ranked lower in future history-based suggestions.",
-      );
+      const activeSession = sessionTracks.some((track) => Number(track.id) === Number(song.id))
+        && Number(player.currentSong?.id) === Number(song.id);
+      if (activeSession) {
+        const result = await requestJson("/api/v1/users/me/adaptive-session/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            song_id: song.id,
+            event_type: eventType,
+            queue: sessionTracks.map((track) => track.id),
+            played_ids: sessionTracks.slice(0, Math.max(0, sessionIndex)).map((track) => track.id),
+            mode,
+            mood: mode === "change" ? targetMood : currentMood || "neutral",
+            context: currentContext || null,
+            use_preferences: usePreferences,
+            position_ms: player.positionMs,
+          }),
+        });
+        const refreshed = Array.isArray(result.remaining) ? result.remaining : [];
+        setSessionTracks([song, ...refreshed]);
+        setSessionIndex(0);
+        player.updateUpcomingTracks(refreshed);
+        if (eventType === "skip") {
+          player.nextTrack();
+          setSessionIndex(refreshed.length ? 1 : 0);
+        }
+        setActionStatus(
+          eventType === "like"
+            ? "Thanks — your feedback refreshed the rest of this session."
+            : "This track was deprioritized and the remaining session was refreshed.",
+        );
+      } else {
+        await requestJson("/api/v1/users/me/listening-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ song_id: song.id, event_type: eventType, source: "assistant" }),
+        });
+        setActionStatus(
+          eventType === "like"
+            ? "Thanks — your positive feedback has been saved."
+            : "Thanks — this track will be ranked lower in future history-based suggestions.",
+        );
+      }
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -477,27 +694,27 @@ function AssistantPage({ user, theme, toggleTheme }) {
   }
 
   function recordPlay(song) {
+    if (!Number.isInteger(Number(song.id))) return;
     fetch("/api/v1/users/me/listening-history", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        song_id: song.id,
-        event_type: "play",
-        source: "assistant",
-      }),
+      body: JSON.stringify({ song_id: song.id, event_type: "play", source: "assistant" }),
     }).catch(() => {
-      // Keep playback available even when history recording is temporarily offline.
+      // A failed history request must never interrupt playback.
     });
   }
 
   function playSong(song) {
+    if (player.playSong(song)) {
+      setActiveSong(null);
+      return;
+    }
     const trackId = song.provider_track_id;
-    if (song.provider === "youtube" && typeof trackId === "string" && /^[\w-]{11}$/.test(trackId)) {
+    if (song.provider === "youtube" && typeof trackId === "string" && /^[\\w-]{11}$/.test(trackId)) {
       recordPlay(song);
       setActiveSong(song);
       return;
     }
-
     try {
       const providerUrl = new URL(song.provider_url);
       if (providerUrl.protocol !== "https:") throw new Error("Unsupported playback URL.");
@@ -582,6 +799,17 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 </label>
               )}
               {mode === "change" && (
+                <>
+                <label>
+                  Mood you are starting from
+                  <select value={sourceMood} onChange={(event) => setSourceMood(event.target.value)}>
+                    {supportedMoods.map((moodName) => (
+                      <option value={moodName} key={moodName}>
+                        {moodName.charAt(0).toUpperCase() + moodName.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label>
                   Mood you want to move toward
                   <select value={targetMood} onChange={(event) => setTargetMood(event.target.value)}>
@@ -598,6 +826,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                     <option value="devotional">Devotional</option>
                   </select>
                 </label>
+                </>
               )}
               <label>
                 Listening context (optional)
@@ -665,6 +894,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
                           <button type="button" onClick={() => loadCollaborators(playlist)}>
                             Manage collaborators
                           </button>
+                          <button type="button" onClick={() => startListeningRoom(playlist)}>
+                            Start group listening
+                          </button>
                           <button type="button" onClick={() => togglePlaylistSharing(playlist)}>
                             {playlist.is_public ? "Copy public link / Make private" : "Make public"}
                           </button>
@@ -724,6 +956,42 @@ function AssistantPage({ user, theme, toggleTheme }) {
               </section>
             )}
 
+            {roomToken && room && (
+              <section className="assistant-room-panel" aria-label="Group listening room">
+                <div className="assistant-room-heading">
+                  <div>
+                    <p className="assistant-room-kicker">LISTEN TOGETHER</p>
+                    <h2>{roomPlaylist?.name || "Group listening room"}</h2>
+                    <p>{room.participants?.length || 1} listener(s) currently connected. Room links expire after six hours.</p>
+                  </div>
+                  <button type="button" onClick={closeListeningRoom}>
+                    Close room
+                  </button>
+                </div>
+                {roomInviteUrl && (
+                  <div className="assistant-room-invite">
+                    <input aria-label="Group listening invite link" readOnly value={roomInviteUrl} />
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(roomInviteUrl).then(
+                        () => setActionStatus("Group listening invite link copied."),
+                        () => setActionStatus("Copy this room link: " + roomInviteUrl),
+                      )}
+                    >
+                      Copy invite
+                    </button>
+                  </div>
+                )}
+                <div className="assistant-room-participants">
+                  <strong>Listening now</strong>
+                  <span>{(room.participants || []).map((participant) => participant.name).join(" · ") || "You"}</span>
+                </div>
+                <p className="assistant-privacy">
+                  The room shares playback position and queue for tracks in this playlist. Synchronization uses periodic polling; it is not sample-accurate streaming.
+                </p>
+              </section>
+            )}
+
             {activeSong && (
               <div className="assistant-player">
                 <iframe
@@ -748,7 +1016,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                     {sessionTracks.map((track, index) => (
                       <li key={track.id}>
                         <span>{index + 1}. {track.title}</span>
-                        <span>{track.artist || "Unknown artist"}</span>
+                        <span>{track.artist || "Unknown artist"}{track.journey_mood ? " · " + track.journey_mood : ""}</span>
                       </li>
                     ))}
                   </ol>
