@@ -36,7 +36,12 @@ Legacy `/api/auth/*` routes remain available for the current client.
 | DELETE | `/api/v1/users/me/mood-journal/{entry_id}` | Delete one of the current user's journal entries. |
 | POST | `/api/v1/users/me/adaptive-session` | Build a recommendation queue and save it to playback state. |
 | GET/POST | `/api/v1/playlists` | List/create playlists owned by the current user. |
-| POST | `/api/v1/playlists/{playlist_id}/refine` | Add catalogue tracks matching a natural-language instruction. |
+| POST | `/api/v1/playlists/{playlist_id}/refine` | Add matching catalogue tracks, remove a named/last track, or reorder a named track. |
+| POST | `/api/v1/playlists/{playlist_id}/invites` | Create a seven-day editor/viewer invitation link (owner only). |
+| POST | `/api/v1/playlists/{playlist_id}/invites/accept` | Accept a valid invitation while signed in. |
+| DELETE | `/api/v1/playlists/{playlist_id}/invites` | Revoke all active invitation links for the playlist (owner only). |
+| GET | `/api/v1/playlists/{playlist_id}/collaborators` | List collaborators (owner only). |
+| PUT/DELETE | `/api/v1/playlists/{playlist_id}/collaborators/{user_id}` | Change collaborator role or remove access (owner only). |
 | GET | `/api/v1/public/playlists` | Browse public playlist summaries. |
 | GET | `/api/v1/public/playlists/{playlist_id}` | Read one public playlist. Visitors cannot edit it. |
 | GET/PUT/DELETE | `/api/v1/playlists/{playlist_id}` | Read/update/delete an owned playlist. |
@@ -99,5 +104,16 @@ Music DNA is disabled by default. Send `POST /api/v1/users/me/music-dna/consent`
 ### Playlist refinement and sharing
 
 `POST /api/v1/playlists/{playlist_id}/refine` accepts `{ "instruction": "add peaceful music" }`. It adds up to five matching catalogue tracks and leaves existing tracks in place. Public sharing is controlled by the playlist owner's `is_public` field; public playlist reads are available through the public endpoints and remain read-only.
+
+
+### Collaborative playlists
+
+Playlist invite creation returns a bearer URL with a seven-day expiry. The owner chooses `editor` or `viewer`. Editors may add, remove, and reorder tracks; viewers can read the private playlist while signed in but cannot change it. Owners can list collaborators, change a collaborator role, remove access, and revoke active invite links. A revoked/expired invite cannot be accepted; already accepted collaborator membership is managed separately by the owner.
+
+The natural-language refine endpoint supports commands such as `add peaceful music`, `remove last song`, `remove Agar Tum Saath Ho`, and `move Lover to the top`. Removal and reordering require an explicit track name or an unambiguous last-track instruction.
+
+### Adaptive queue and voice
+
+The adaptive-session endpoint stores a queue snapshot in playback state. The assistant offers Start, Previous, and Next controls and saves the current track/queue. This is not a background player and does not automatically advance when an embed ends. Voice input and Read aloud use browser speech APIs; no speech audio is sent to the backend, and support varies by browser.
 
 Successful API responses contain JSON; error responses use an `error` field. Authentication failures return 401, invalid payloads 400, and assistant rate-limit responses 429.

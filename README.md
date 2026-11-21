@@ -2,7 +2,7 @@
 
 **A more personal way to find music for the moment.**
 
-[Open the live demo](https://mannkidhun.onrender.com) · [Community playlists](https://mannkidhun.onrender.com/community) · [Architecture](docs/ARCHITECTURE.md) · [API reference](docs/API_DOCUMENTATION.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security and privacy](docs/SECURITY.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
+[Open the live demo](https://mannkidhun.onrender.com) · [Community playlists](https://mannkidhun.onrender.com/community) · [Regional catalogue sources](docs/CATALOGUE_SOURCES.md) · [Architecture](docs/ARCHITECTURE.md) · [API reference](docs/API_DOCUMENTATION.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security and privacy](docs/SECURITY.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
 
 MannKiDhun is an open-source music discovery app with a **JavaScript/React frontend** and a **Python/Flask backend**. Choose a vibe yourself or optionally request an expression-based starting suggestion, then explore music that fits the moment.
 
@@ -20,12 +20,15 @@ MannKiDhun is an open-source music discovery app with a **JavaScript/React front
 - Enable **Personal Music DNA** to see private summaries of your favourite languages, genres, and artists from saved preferences and account activity. This is opt-in and can be disabled.
 - Keep a private, manually written **Mood & Music Journal**. Journal entries are separate from camera inference and do not contain camera frames.
 - Use browser-supported voice input in English (India) or Hindi to dictate a text request.
-- Share a playlist publicly and browse the community directory. Shared playlists are read-only for visitors; only the owner can edit them.
-- Explore Indian-language intent filters including Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati, Malayalam, Kannada, Urdu, and Sanskrit. Actual recommendations depend on the catalogue's current coverage.
+- Share a playlist publicly and browse the community directory. You can also invite editors or viewers with expiring links, change collaborator roles, and revoke access. Editors can add/remove/reorder tracks; visitors to public links remain read-only.
+- Refine playlists with natural-language commands to add tracks, remove a named/last track, or move a track to the beginning/end.
+- Build an adaptive queue and use Start, Previous, and Next controls. Queue progress is saved to your account; the current YouTube embed is not a full automatic streaming player.
+- Dictate requests in English (India) or Hindi using browser speech recognition, and use Read aloud for spoken assistant responses where the browser supports speech synthesis.
+- Explore Indian-language intent filters including Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati, Malayalam, Kannada, Urdu, and Sanskrit. The starter catalogue includes verified Punjabi, Bengali, Gujarati, and Telugu additions; other languages require more verified track entries.
 - Use the dashboard to review recent listening activity, saved playlists, Music DNA, and journal entries.
 - Use the responsive interface on desktop or mobile, with light and dark themes.
 
-**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service; playback is provided through YouTube embeds and external provider links. The saved queue stores track IDs and is not a synchronized, cross-session player. Adaptive sessions save a queue snapshot; they do not run a continuous player or reorder a playing queue in real time. Natural-language playlist refinement adds matches, while public playlist sharing is read-only for visitors and is not real-time co-editing. Voice input depends on browser speech-recognition support. Indian-language intent parsing is broader than the current seeded catalogue, so some languages may return few or no matches. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
+**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service; playback is provided through YouTube embeds and external provider links. The saved queue stores track IDs and is not a synchronized, cross-session player. Adaptive sessions save a queue snapshot; they do not run a continuous player or reorder a playing queue in real time. Natural-language playlist editing adds, removes, or reorders catalogue tracks based on explicit commands. Collaborative editors can make changes through authenticated endpoints; public visitors remain read-only. Invitation links are bearer links that expire after seven days and can be revoked. Voice input and spoken responses depend on browser speech APIs. Language recognition is broader than the seeded catalogue, so some languages may still return few or no matches. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
 
 ## Technology
 

@@ -29,8 +29,10 @@ In development, Vite proxies `/api` and `/predict` to Flask. In the current sing
 3. Music DNA is disabled until the user opts in. Its private summary aggregates positive and negative interactions by language, genre, and artist.
 4. Mood-journal entries are manually entered, account-scoped text and mood labels. The journal never receives camera frames or model predictions.
 5. Natural-language playlist refinement parses a bounded instruction and adds catalogue matches; existing tracks are not removed implicitly.
-6. Owners may mark playlists public. The Community page lists public playlists, while public detail pages are read-only and do not grant collaborative edit permissions.
-7. Voice input is browser-side speech-to-text; only the recognised text is sent to the normal assistant endpoint.
+6. Owners may mark playlists public. The Community page lists public playlists, while public detail pages are read-only.
+7. Owners can create seven-day editor/viewer invite links. Accepted editors may add, remove, and reorder tracks; viewers may read but not edit. Owners can change roles, remove collaborators, and revoke unaccepted invitation links.
+8. Natural-language playlist commands route to explicit add/remove/reorder actions; remove and move actions require a named track or unambiguous "last" instruction.
+9. Voice input and spoken responses are browser-side Web Speech APIs; only recognised text is sent to the assistant endpoint. Adaptive-session controls update the saved queue when the listener selects a track; no continuous audio automation is assumed.
 
 ## Library and feedback flow
 

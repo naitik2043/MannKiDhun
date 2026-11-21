@@ -1,44 +1,43 @@
 # Product roadmap
 
-This roadmap separates shipped product behaviour from capabilities that remain future work. It intentionally avoids describing the current catalogue as broader than it is.
+This roadmap separates shipped behaviour from the remaining product work. Implemented features are listed with their current boundaries rather than overstating a prototype as a production service.
 
 ## Available today
 
-- Manual mood selection and an optional expression check-in. Camera inference is opt-in, treated as an estimate, and does not persist raw frames.
-- Catalogue-grounded assistant discovery with a local rules fallback.
-- **Match / Change / Explore** discovery modes, with a selectable target mood for Change.
-- Hybrid recommendations using mood/vibe, catalogue metadata, declared preferences, and opt-in listening history.
-- Recommendation explanations, Like / Not for me feedback, and signed positive/negative history scoring.
-- **Personal Music DNA**, disabled by default and enabled only with explicit consent. It privately summarises top languages, genres, artists, and listening signals from the current account's activity.
-- A private **Mood & Music Journal** for manually entered mood labels and notes. Journal entries are not generated from facial-expression estimates.
-- **Adaptive session builder** that creates recommendations and saves the resulting track IDs to the playback queue. It is a queue snapshot, not a live autonomous player.
-- Natural-language playlist refinement that adds up to five catalogue matches for instructions such as a calmer vibe, a language, a genre, or more artist variety. It does not silently remove existing tracks.
-- **Public playlist sharing and community discovery**. Owners choose which playlists are public; visitors can browse and open those playlists read-only.
-- Browser-side voice-to-text input in English (India) and Hindi, subject to SpeechRecognition support in the browser.
-- Indian-language intent recognition for Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati, Malayalam, Kannada, Urdu, and Sanskrit. The seeded catalogue still has limited coverage, so supported language detection does not guarantee matching tracks.
+- Manual mood selection and optional expression check-in; camera inference remains opt-in and raw frames are not saved.
+- **Match / Change / Explore** modes, including explicit current/target mood choices.
+- Catalogue-grounded music assistant, local intent fallback, explainable recommendations, Like / Not for me feedback, and signed positive/negative history ranking.
+- **Personal Music DNA**, disabled by default, with private summaries for languages, genres, artists, listening tags, and recurring vibes.
+- **Mood & Music Journal**, with manually entered moods and private notes.
+- **Adaptive queue builder**, saved playback queue, and Start / Previous / Next controls. It is still a queue snapshot; tracks do not auto-advance when the YouTube embed ends.
+- Natural-language playlist editing for add, remove, and reorder actions.
+- Public playlists plus a community directory; invite-based viewer/editor collaboration with seven-day links, role changes, collaborator removal, and invite revocation.
+- Browser-based voice dictation in Hindi and English (India), plus browser Read aloud for assistant replies.
+- Verified initial regional catalogue additions for Punjabi, Bengali, Gujarati, and Telugu, alongside existing Hindi and English starter tracks. Supported language intent parsing is broader than currently populated songs.
 
-## Still planned
+## Remaining product work
 
-1. **True collaborative playlists** — multi-user editing, invitations, roles, conflict resolution, and activity history. Current public links are read-only.
-2. **Richer India-first catalogue** — add verified track metadata and playback links across regional languages, Indian indie, Bollywood, Punjabi, and other scenes. No unverified or invented links should be added.
-3. **Full player and adaptive playback** — a persistent player with real playback progress, skip handling, queue replacement, and session adaptation while a track is playing.
-4. **Voice conversation** — spoken responses and hands-free conversation; current voice support only transcribes input in the browser.
-5. **More advanced Music DNA** — transparent preference controls, diversity tuning, profile export/reset, and confidence/coverage indicators.
+1. **Full player experience** — a persistent site-wide player, media-session integration, automatic track-ended detection, durable position tracking, repeat/shuffle, and queue hand-off across pages. Current controls are assistant-page scoped and manually advanced.
+2. **Real-time collaborative sessions** — live presence, simultaneous editing indicators, conflict resolution, activity stream, and invited-user notifications. Current collaboration is authenticated role-based editing without live presence.
+3. **Verified India-first catalogue expansion** — continue adding sourced tracks for Tamil, Malayalam, Kannada, Marathi, Urdu, and other regional scenes. Never invent provider IDs or playback URLs.
+4. **Richer context and personalization** — energy/tempo/era metadata, user-tunable diversity, profile coverage/confidence, export/reset, and session adaptation based on activity during playback.
+5. **Conversational voice** — turn-taking, interruptible speech, and spoken follow-up questions. Current support is browser dictation plus text-to-speech.
+6. **Wearable/context integrations** — only after privacy, consent, and reliability design.
 
 ## Engineering priorities before durable production use
 
-- Move user/library persistence from the free service's ephemeral SQLite filesystem to a durable managed database and file store.
-- Add versioned database migrations, tested backups, and restore drills.
+- Move user/library persistence from free Render ephemeral SQLite storage to a managed durable database and file store.
+- Add versioned migrations, tested backups, and restore drills.
 - Implement CSRF protections, login throttling, distributed rate limiting, security headers, and a reviewed origin policy.
 - Configure real password recovery and verification email delivery.
 - Add dependency scanning, deployment monitoring, and alerting.
-- Evaluate the expression model on a labeled, subject-separated dataset and document its limitations before making any accuracy claims.
+- Evaluate the expression model on a labeled, subject-separated dataset before making accuracy claims.
 
 ## Product principles
 
 - The listener's manual choice always takes priority over an expression estimate.
-- Camera access is optional; raw frames are processed in memory and are not part of listening history or the journal.
-- Assistant recommendations come from the available catalogue rather than invented track names or playback URLs.
-- Personalisation uses listening history for ranking or Music DNA only with explicit consent.
-- Public sharing is opt-in and read-only for visitors until proper collaborative permissions are implemented.
-- The product must explain its recommendations and keep the listener in control.
+- Camera access is optional; raw frames are not part of listening history or the journal.
+- Recommendations come from the verified catalogue, never fabricated track names or IDs.
+- Listening-history-based personalization requires explicit consent.
+- Public sharing is opt-in; visitors are read-only unless they accept a role-based invite.
+- Keep the listener informed and in control.

@@ -11,6 +11,8 @@ The application currently uses a single SQLite file at `instance/moodwave.sqlite
 - `artists`, `genres`, `songs`, `song_genres`, `song_tags`: local recommendation catalogue and provider metadata.
 - `user_song_interactions`, `saved_songs`, `recommendation_events`: user activity and library state.
 - `playlists`, `playlist_tracks`: user-owned playlists and ordered catalogue entries.
+- `playlist_collaborators`: user membership with viewer/editor role, unique per playlist/user.
+- `playlist_invites`: hashed bearer invitation tokens with role, expiry, and revocation timestamps; raw tokens are returned only at creation time.
 - `playback_states`: one current playback/queue snapshot per user. Adaptive sessions write recommendation IDs here; no audio stream or live player position is managed by this table.
 
 Account-owned data references `users` with `ON DELETE CASCADE`. Track and playlist relations also declare foreign keys. Every application SQLite connection now enables foreign-key enforcement, so those constraints and cascades apply during normal requests as well as schema setup. Catalogue schema creation and the existing additive column checks are performed by Python initialization code; there is no versioned migration framework or rollback command.

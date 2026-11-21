@@ -13,6 +13,8 @@
 - Mood journal entries are manually entered and private to the account owner. They do not contain model-inferred mood, camera frames, or raw assistant conversations.
 - Music DNA is disabled by default and requires a separate opt-in. It exposes derived summaries only to the signed-in user and can be disabled at any time.
 - Playlist sharing is explicitly opt-in. Public playlist endpoints expose only playlists whose owner set `is_public`; visitors have read-only access.
+- Collaborative invitation tokens are random bearer values; only their SHA-256 hashes are stored. Tokens expire after seven days and can be revoked by the owner. Treat invitation links like passwords until they expire or are revoked.
+- Collaborators are assigned either viewer or editor access. Editor endpoints verify membership/role on each operation; playlist metadata and collaboration management remain owner-only.
 
 ## Known gaps before production
 
