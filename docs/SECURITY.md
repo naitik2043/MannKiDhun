@@ -8,7 +8,7 @@
 - Account/library routes use the authenticated user ID for ownership-scoped reads and updates.
 - Password reset tokens are not returned by the forgot-password endpoint. Until email delivery is implemented, password recovery is unavailable.
 - Assistant endpoints require authentication, limit message size, validate consent booleans, validate structured provider intent, filter results to catalogue records, and apply a process-local per-account rate limit.
-- Assistant messages are held only in browser memory. Listening history and preferences are opt-in and influence ranking only. If configured, the AI provider receives only the current message, not account credentials or saved history.
+- Assistant messages are held only in browser memory. Listening history and preferences are opt-in and influence assistant ranking only. Play activity and explicit Like/Not for me feedback are associated with the signed-in account; camera frames and assistant conversation transcripts are not added to this history. If configured, the AI provider receives only the current message, not account credentials or saved history.
 - Camera capture requires an explicit user action. Frames are processed in request memory and are not written to disk by the expression endpoint.
 
 ## Known gaps before production

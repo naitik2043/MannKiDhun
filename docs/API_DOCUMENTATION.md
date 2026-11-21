@@ -51,4 +51,20 @@ Legacy `/api/auth/*` routes remain available for the current client.
 
 `message` is required and limited to 500 characters. Consent fields must be booleans. The response includes a user-facing `response`, catalogue-backed `recommendations`, validated `intent`, `used_fallback`, `intent_provider` (`ai` or `rules`), and the consent choices used for ranking. Requests are limited to 12 per minute per account within a single server process.
 
+### Listening activity and recommendation feedback
+
+The signed-in dashboard reads recent activity from `GET /api/v1/users/me/listening-history` and playlist summaries from `GET /api/v1/playlists`.
+
+The assistant records a play event when a user starts a catalogue track:
+
+```json
+{
+  "song_id": 42,
+  "event_type": "play",
+  "source": "assistant"
+}
+```
+
+The same listening-history endpoint accepts feedback events such as `like` and `skip` (shown in the UI as **Like** and **Not for me**). Recommendation ranking gives positive weight to likes/saves/completions and negative weight to skips. These events are stored against the signed-in account and are used for history-aware ranking only when the user explicitly enables listening-history personalisation in an assistant request.
+
 Successful API responses contain JSON; error responses use an `error` field. Authentication failures return 401, invalid payloads 400, and assistant rate-limit responses 429.
