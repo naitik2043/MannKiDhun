@@ -22,6 +22,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from flask import Flask, abort, jsonify, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from database_migrations import run_migrations
 from frame_validation import FrameQualityError, validate_frame_quality
 from music_assistant import extract_music_intent
 from model_loader import load_emotion_artifacts
@@ -433,6 +434,7 @@ def initialize_auth_database():
 
 initialize_auth_database()
 create_music_catalogue(AUTH_DATABASE)
+run_migrations(AUTH_DATABASE)
 
 def public_user(user):
     name = (user.get("full_name") or user.get("name") or "").strip()
