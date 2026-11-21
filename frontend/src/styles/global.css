@@ -3999,3 +3999,27 @@ html[data-theme="dark"] .mobile-menu-toggle > span {
     flex-direction: column;
   }
 }
+
+
+.assistant-session-track-list {
+  display: grid;
+  gap: 5px;
+  max-height: 135px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.assistant-session-track-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #e6e0f2;
+  font-size: 10px;
+}
+
+.assistant-session-track-list li span:last-child {
+  color: #a9a2b9;
+  text-align: right;
+}
