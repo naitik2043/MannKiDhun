@@ -214,8 +214,8 @@ See [Deployment and operations](docs/DEPLOYMENT.md) and [Database](docs/DATABASE
 - Kannada, Urdu, Sanskrit, and other regional-language catalogue coverage needs verified additions; language recognition in the assistant does not mean that tracks are already available.
 - Password-reset and verification email delivery are not configured.
 - Browser API mutations use a synchronizer-token CSRF cookie/header plus the configured origin allowlist. Requests omitting both Origin and Referer remain permitted for trusted non-browser / legacy compatibility.
-- Login and assistant rate limits are process-local, not distributed.
-- SQLite migrations and manual backup / restore tooling are included, but scheduled off-site backups and restore drills are not. Login and assistant limits remain process-local, and the Free Render filesystem is ephemeral; this is not a durable multi-worker production setup.
+- Login and assistant rate limits are process-local and not shared across workers; the failed-login registry is memory-bounded with opportunistic expiry cleanup.
+- SQLite migrations and manual backup / restore tooling are included, but scheduled off-site backups and restore drills are not. Login and assistant limits remain process-local, and the Free Render filesystem is ephemeral; this is not a durable multi-worker production setup. Failed-login throttle entries are memory-bounded, but shared rate limiting is still required before scaling.
 
 ## Product and market research
 

@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 from urllib.parse import urlsplit
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -113,8 +113,10 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
 LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60
+# Keep attacker-controlled identifier/IP combinations from growing without bound.
+LOGIN_ATTEMPT_MAX_KEYS = 10_000
 login_attempt_lock = threading.Lock()
-login_attempts = defaultdict(deque)
+login_attempts = OrderedDict()
 
 
 @app.before_request
@@ -171,11 +173,31 @@ def _prune_login_attempts(attempts, now):
         attempts.popleft()
 
 
+def _prune_login_attempt_registry(now):
+    """Remove expired least-recently-used keys before adding another attempt.
+
+    The registry is ordered by access. Once its oldest key still has a live
+    attempt, every later key was touched more recently and can be left alone.
+    """
+    while login_attempts:
+        oldest_key, oldest_attempts = next(iter(login_attempts.items()))
+        _prune_login_attempts(oldest_attempts, now)
+        if oldest_attempts:
+            break
+        login_attempts.popitem(last=False)
+
+
 def _login_retry_after(key):
     now = time.monotonic()
     with login_attempt_lock:
-        attempts = login_attempts[key]
+        attempts = login_attempts.get(key)
+        if attempts is None:
+            return 0
         _prune_login_attempts(attempts, now)
+        if not attempts:
+            login_attempts.pop(key, None)
+            return 0
+        login_attempts.move_to_end(key)
         if len(attempts) < LOGIN_ATTEMPT_LIMIT:
             return 0
         return max(1, int(LOGIN_ATTEMPT_WINDOW_SECONDS - (now - attempts[0])) + 1)
@@ -184,9 +206,18 @@ def _login_retry_after(key):
 def _record_failed_login(key):
     now = time.monotonic()
     with login_attempt_lock:
-        attempts = login_attempts[key]
-        _prune_login_attempts(attempts, now)
+        _prune_login_attempt_registry(now)
+        attempts = login_attempts.get(key)
+        if attempts is None:
+            attempts = deque()
+        else:
+            _prune_login_attempts(attempts, now)
         attempts.append(now)
+        login_attempts[key] = attempts
+        login_attempts.move_to_end(key)
+
+        while len(login_attempts) > LOGIN_ATTEMPT_MAX_KEYS:
+            login_attempts.popitem(last=False)
 
 
 def _clear_login_attempts(key):

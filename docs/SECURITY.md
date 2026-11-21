@@ -2,7 +2,7 @@
 
 ## Implemented safeguards
 
-- Failed sign-in attempts are throttled after five failures for the same identifier / client-address pair within a 15-minute window. The in-memory counter clears after successful sign-in and is local to one process.
+- Failed sign-in attempts are throttled after five failures for the same identifier / client-address pair within a 15-minute window. The in-memory registry uses a 10,000-key LRU cap and removes expired least-recently-used entries opportunistically; successful sign-in clears its key. It remains process-local and is not shared across workers or hosts.
 - Browser mutation requests to API and expression routes reject an Origin / Referer host that is not the request host or a configured MANNKIDHUN_ALLOWED_ORIGINS host.
 - Browser mutation requests must carry a synchronizer token in both the same-site `mannkidhun_csrf` cookie and the `X-CSRF-Token` header. The frontend attaches the header automatically for same-origin API / expression mutations; tokens are rotated when the signed-in session is cleared.
 
@@ -26,7 +26,7 @@
 
 - Password-reset and verification email delivery are not implemented. The reset endpoint cannot currently be used through a normal user flow.
 - Requests that omit both Origin and Referer are allowed for non-browser / legacy compatibility and therefore do not receive the browser CSRF-token enforcement. Keep that compatibility limited to trusted non-browser clients.
-- Login and assistant throttles are process-local, so limits reset on restart and are not shared across workers or hosts. A shared rate-limit store is required before scaling beyond the current single-process deployment.
+- Login and assistant throttles are process-local, so limits reset on restart and are not shared across workers or hosts. The failed-login registry is memory-bounded, but a shared rate-limit store is still required before scaling beyond the current single-process deployment.
 - `SECRET_KEY` falls back to a newly generated process-local value when unset; deployments must supply a stable secret.
 - Secure cookies and HSTS require explicit HTTPS configuration. Reverse-proxy trust, HTTPS enforcement, a restrictive Content Security Policy, production error monitoring, and alerting still need deployment-level review.
 - The database is local SQLite. Versioned schema migrations and integrity-checked manual online backup / restore tools are included, but managed-database support, scheduled off-site backups, and recurring restore drills are absent. `MANNKIDHUN_DATA_DIR` is durable only when it points to a mounted persistent disk.
