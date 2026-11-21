@@ -549,7 +549,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
               </button>
             </div>
             {currentMood && (
-              <p className="assistant-privacy" role="status">
+              <p className="assistant-privacy" aria-live="polite">
                 Starting from your {currentMood} check-in. You can change this mood before searching.
               </p>
             )}
