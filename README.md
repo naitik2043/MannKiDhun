@@ -96,30 +96,67 @@ The optional Music Assistant can use local rule-based intent parsing. An OpenAI-
 
 ## Architecture
 
-```text
-Browser
-└── React + Vite application
-    ├── Pages, components, hooks, player and camera / voice interactions
-    └── Same-origin API requests + session cookie
-         |
-         v
-Flask application (app.py)
-    ├── Authentication, sessions and request validation
-    ├── Music Assistant
-    │    ├── Local intent rules
-    │    └── Optional structured-intent provider
-    ├── Recommendation engine
-    │    ├── Curated catalogue and ranking
-    │    ├── Preferences and feedback
-    │    └── Context-tag affinity
-    └── Optional expression pipeline
-         ├── Frame validation
-         ├── MediaPipe / OpenCV feature processing
-         └── Keras model loading and prediction aggregation
-         |
-         v
-SQLite database + profile uploads
+The application follows a browser-client and Flask API architecture. In production, Flask serves the built React application and handles the API; during development, Vite proxies API requests to the local Flask server.
+
+```mermaid
+flowchart TB
+    subgraph Client["Listener's browser"]
+        UI["React 18 application"]
+        BrowserAPIs["Browser capabilities<br/>Camera · Web Speech · Media Session"]
+        YouTube["YouTube IFrame player<br/>external playback"]
+        UI --- BrowserAPIs
+        UI --- YouTube
+    end
+
+    subgraph Server["Flask application · app.py"]
+        Routes["Routes and request safeguards<br/>Sessions · validation · security headers"]
+        Assistant["Music Assistant<br/>intent parsing"]
+        Recommender["Recommendation engine<br/>catalogue filtering and ranking"]
+        Expression["Optional expression pipeline<br/>frame validation · MediaPipe / OpenCV<br/>Keras inference · prediction aggregation"]
+        Routes --> Assistant
+        Assistant --> Recommender
+        Routes --> Expression
+    end
+
+    subgraph Persistence["Application storage"]
+        DB[("SQLite database<br/>accounts · catalogue · preferences<br/>playlists · feedback · listening state")]
+        Uploads[("Profile uploads<br/>configured data directory")]
+    end
+
+    Provider["Optional OpenAI-compatible<br/>intent provider"]
+
+    UI -->|"JSON API + session cookie"| Routes
+    Assistant -->|"current text query only"| Provider
+    Recommender <-->|"catalogue and user data"| DB
+    Routes <-->|"account data"| DB
+    Routes --> Uploads
 ```
+
+### How a recommendation request works
+
+```mermaid
+flowchart TD
+    Start["Listener opens the Music Assistant"] --> Mode["Select Match, Change, or Explore"]
+    Mode --> Inputs["Enter a request or use browser speech input"]
+    Inputs --> Options["Optionally select context and enable preferences or history"]
+    Options --> API["Send authenticated request to Flask"]
+    API --> Parser["Parse mood, language, genre, artist, and context"]
+    Parser --> Provider{"Structured intent provider available?"}
+    Provider -->|"Yes, valid response"| Intent["Validate supported intent fields"]
+    Provider -->|"Not configured, unavailable, or invalid"| Rules["Use local rule-based intent fallback"]
+    Intent --> Rank["Filter and rank existing catalogue tracks"]
+    Rules --> Rank
+    Rank --> Results["Return catalogue-backed recommendations and reasons"]
+    Results --> Player["Play a selected track using the YouTube embed"]
+    Player --> Feedback["Optional Like / Not for me feedback"]
+    Feedback --> Queue["Refresh the remaining session when applicable"]
+```
+
+The Music Assistant does not invent track names or playback URLs. Recommendations are selected from the catalogue. Listening-history signals are used only when the listener explicitly enables history-based personalisation for the request.
+
+### Detailed diagrams and workflows
+
+See [System architecture](docs/ARCHITECTURE.md) for the component and request-level design, and [Application workflows](docs/WORKFLOWS.md) for the mood check-in, recommendation, playlist collaboration, and group listening flows.
 
 ### Important implementation areas
 
@@ -310,6 +347,7 @@ See [Deployment and operations](docs/DEPLOYMENT.md) and [Database operations](do
 | Document | Description |
 | --- | --- |
 | [Architecture](docs/ARCHITECTURE.md) | Runtime components and key application flows |
+| [Application workflows](docs/WORKFLOWS.md) | Mermaid flowcharts for recommendations, mood check-in, playlists, and group listening |
 | [API documentation](docs/API_DOCUMENTATION.md) | Backend endpoints and API behaviour |
 | [Security](docs/SECURITY.md) | Implemented safeguards and production hardening gaps |
 | [Deployment](docs/DEPLOYMENT.md) | Render setup, environment configuration, and operations |
