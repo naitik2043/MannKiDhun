@@ -795,7 +795,7 @@ class ApiRouteTests(unittest.TestCase):
         self.assertTrue(reset.json["preferences_preserved"])
         self.assertFalse(client.get("/api/v1/users/me/music-dna").json["enabled"])
         self.assertEqual(client.get("/api/v1/users/me/listening-history").json["history"], [])
-        self.assertEqual(len(client.get("/api/v1/users/me/saved-songs").json["saved_songs"]), 1)
+        self.assertEqual(len(client.get("/api/v1/users/me/saved-songs").json["songs"]), 1)
         self.assertEqual(client.get("/api/v1/preferences").json["preferred_genres"], ["Pop"])
 
     def test_adaptive_session_saves_recommendation_queue(self):

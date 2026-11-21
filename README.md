@@ -17,8 +17,8 @@ MannKiDhun is an open-source music discovery app with a **JavaScript/React front
 - Save tracks, create playlists, and manage your preferences for language, genre, listening style, and artists.
 - Choose **Match**, **Change**, or **Explore** discovery modes, then build an adaptive listening queue using your selected preferences and (only when you opt in) listening activity.
 - Refine a playlist with natural-language requests such as “add peaceful music”, “more Hindi songs”, or “more variety”. Refinement adds matching catalogue tracks; it does not silently remove existing songs.
-- Enable **Personal Music DNA** to see private summaries of your favourite languages, genres, and artists from saved preferences and account activity. This is opt-in and can be disabled.
-- Keep a private, manually written **Mood & Music Journal**. Journal entries are separate from camera inference and do not contain camera frames.
+- Enable **Personal Music DNA** to see private summaries of your favourite languages, genres, artists, listening styles, and recurring vibes from saved preferences and account activity. This is opt-in; you can turn it off or reset feedback/history while retaining saved songs and declared preferences.
+- Keep a private, manually written **Mood & Music Journal**, with mood-pattern summaries from recent entries. Journal entries are separate from camera inference and do not contain camera frames.
 - Use browser-supported voice input in English (India) or Hindi to dictate a text request.
 - Share a playlist publicly and browse the community directory. You can also invite editors or viewers with expiring links, change collaborator roles, and revoke access. Editors can add/remove/reorder tracks; visitors to public links remain read-only.
 - Refine playlists with natural-language commands to add tracks, remove a named/last track, or move a track to the beginning/end.
