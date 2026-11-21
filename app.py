@@ -1586,7 +1586,7 @@ def assistant_chat():
     mode = payload.get("mode", "match")
     target_mood = payload.get("target_mood")
     allowed_moods = {"happy", "sad", "angry", "neutral", "surprise", "romantic", "relaxed", "energetic", "motivational", "focused", "devotional"}
-    if mode not in {"match", "change", "explore"}:
+    if not isinstance(mode, str) or mode not in {"match", "change", "explore"}:
         return jsonify({"error": "Choose Match, Change, or Explore mode."}), 400
     if target_mood is not None and (
         not isinstance(target_mood, str) or target_mood.strip().lower() not in allowed_moods
@@ -1843,7 +1843,7 @@ def playlist_invite_create(playlist_id):
     if not isinstance(payload, dict):
         return jsonify({"error": "Provide invitation options."}), 400
     role = payload.get("role", "editor")
-    if role not in {"viewer", "editor"}:
+    if not isinstance(role, str) or role not in {"viewer", "editor"}:
         return jsonify({"error": "Invite role must be viewer or editor."}), 400
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -1994,7 +1994,7 @@ def create_adaptive_session():
     mood = payload.get("mood")
     use_preferences = payload.get("use_preferences", True)
     use_history = payload.get("use_history", False)
-    if mode not in {"match", "change", "explore"}:
+    if not isinstance(mode, str) or mode not in {"match", "change", "explore"}:
         return jsonify({"error": "Choose Match, Change, or Explore mode."}), 400
     allowed_moods = {"happy", "sad", "angry", "neutral", "surprise", "romantic", "relaxed", "energetic", "motivational", "focused", "devotional"}
     if mood is not None and (

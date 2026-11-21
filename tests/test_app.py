@@ -967,6 +967,42 @@ class ApiRouteTests(unittest.TestCase):
             404,
         )
 
+    def test_new_product_endpoints_reject_malformed_mode_and_invite_roles(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "Validation Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        playlist_id = client.post(
+            "/api/v1/playlists", json={"name": "Validation Mix"}
+        ).json["playlist"]["id"]
+
+        self.assertEqual(
+            client.post(
+                "/api/v1/users/me/adaptive-session",
+                json={"mode": {"bad": "shape"}},
+            ).status_code,
+            400,
+        )
+        self.assertEqual(
+            client.post(
+                "/api/v1/assistant/chat",
+                json={"message": "music please", "mode": ["change"]},
+            ).status_code,
+            400,
+        )
+        self.assertEqual(
+            client.post(
+                f"/api/v1/playlists/{playlist_id}/invites",
+                json={"role": ["editor"]},
+            ).status_code,
+            400,
+        )
+
     def test_viewer_playlist_invite_does_not_grant_edit_access(self):
         owner = mood_app.app.test_client()
         owner.post(
