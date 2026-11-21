@@ -3914,3 +3914,88 @@ html[data-theme="dark"] .mobile-menu-toggle > span {
     width: 100%;
   }
 }
+
+
+/* Collaborative playlists, speech output, and adaptive session controls. */
+.assistant-collaborator-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+}
+
+.assistant-collaborator-list h3 {
+  margin: 0;
+  color: #ded7ed;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.assistant-collaborator-list select {
+  min-height: 32px;
+  padding: 5px 8px;
+  color: #f5f2fa;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.assistant-collaborator-list button,
+.assistant-read-aloud,
+.assistant-session-player button {
+  min-height: 32px;
+  padding: 6px 10px;
+  color: #e2d9ff;
+  background: rgb(118 87 232 / 12%);
+  border: 1px solid rgb(195 174 255 / 22%);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.assistant-read-aloud {
+  margin-top: 8px;
+  padding: 4px 8px;
+  min-height: 27px;
+}
+
+.assistant-session-player {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 13px 20px 0;
+  padding: 13px;
+  color: #eeeaf5;
+  background: rgb(118 87 232 / 10%);
+  border: 1px solid rgb(195 174 255 / 16%);
+  border-radius: 12px;
+}
+
+.assistant-session-player > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.assistant-session-player strong {
+  font-size: 11px;
+}
+
+.assistant-session-player span {
+  color: #bdb6cc;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .assistant-session-player {
+    margin-right: 13px;
+    margin-left: 13px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

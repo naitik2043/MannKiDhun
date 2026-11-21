@@ -32,7 +32,14 @@ describe("AssistantPage", () => {
       if (url === "/api/v1/users/me/adaptive-session" && options.method === "POST") {
         return jsonResponse({
           message: "Adaptive session ready.",
-          recommendations: [{ id: 12, title: "Session track" }],
+          recommendations: [{
+            id: 12,
+            title: "Session track",
+            artist: "Catalogue Artist",
+            provider: "youtube",
+            provider_track_id: "AbcdEF12345",
+            provider_url: "https://music.example/session-track",
+          }],
           state: { queue: [12] },
         });
       }
@@ -111,7 +118,21 @@ describe("AssistantPage", () => {
         }),
       }),
     ));
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/users/me/playback-state",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          current_song_id: 12,
+          position_ms: 0,
+          queue: [12],
+          shuffle: false,
+          repeat_mode: "off",
+        }),
+      }),
+    ));
+    fireEvent.click(screen.getAllByRole("button", { name: "Play" })[0]);
     expect(screen.getByTitle("Play Catalogue Track by Catalogue Artist")).toBeTruthy();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/users/me/listening-history",
