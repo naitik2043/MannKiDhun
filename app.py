@@ -262,10 +262,34 @@ def initialize_auth_database():
             "preferred_genres TEXT NOT NULL DEFAULT '[]',"
             "preferred_listening_styles TEXT NOT NULL DEFAULT '[]',"
             "favourite_artists TEXT NOT NULL DEFAULT '[]',"
+            "music_dna_enabled INTEGER NOT NULL DEFAULT 0,"
             "created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,"
             "updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,"
             "FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE"
             ")"
+        )
+        preference_columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(user_preferences)").fetchall()
+        }
+        if "music_dna_enabled" not in preference_columns:
+            connection.execute(
+                "ALTER TABLE user_preferences ADD COLUMN music_dna_enabled INTEGER NOT NULL DEFAULT 0"
+            )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS mood_journal_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                mood TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mood_journal_user_created "
+            "ON mood_journal_entries(user_id, created_at DESC)"
         )
         connection.execute(
             "CREATE TABLE IF NOT EXISTS artists ("
@@ -996,7 +1020,7 @@ def user_preferences():
     with closing(_connect_database(AUTH_DATABASE)) as connection, connection:
         connection.row_factory = sqlite3.Row
         preference_row = connection.execute(
-            "SELECT preferred_languages, preferred_genres, preferred_listening_styles, favourite_artists FROM user_preferences WHERE user_id = ?",
+            "SELECT preferred_languages, preferred_genres, preferred_listening_styles, favourite_artists, music_dna_enabled FROM user_preferences WHERE user_id = ?",
             (user["id"],),
         ).fetchone()
 
@@ -1006,6 +1030,7 @@ def user_preferences():
             "preferred_genres": "[]",
             "preferred_listening_styles": "[]",
             "favourite_artists": "[]",
+            "music_dna_enabled": 0,
         }
 
     if request.method == "GET":
@@ -1014,6 +1039,7 @@ def user_preferences():
             "preferred_genres": _normalize_list_field(preference_row["preferred_genres"]),
             "preferred_listening_styles": _normalize_list_field(preference_row["preferred_listening_styles"]),
             "favourite_artists": _normalize_list_field(preference_row["favourite_artists"]),
+            "music_dna_enabled": bool(preference_row["music_dna_enabled"]),
             "onboarding_completed": bool(user["onboarding_completed"]),
         })
 
@@ -1029,18 +1055,22 @@ def _save_user_preferences(user, payload, onboarding_completed=None):
     preferred_genres = _normalize_list_field(payload.get("preferred_genres", []))
     preferred_listening_styles = _normalize_list_field(payload.get("preferred_listening_styles", []))
     favourite_artists = _normalize_list_field(payload.get("favourite_artists", []))
+    music_dna_enabled = payload.get("music_dna_enabled", False)
+    if type(music_dna_enabled) is not bool:
+        return jsonify({"error": "Music DNA consent must be true or false."}), 400
     if onboarding_completed is None:
         onboarding_completed = payload.get("onboarding_completed")
 
     with closing(_connect_database(AUTH_DATABASE)) as connection, connection:
         connection.execute(
-            "INSERT INTO user_preferences (user_id, preferred_languages, preferred_genres, preferred_listening_styles, favourite_artists, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET preferred_languages = excluded.preferred_languages, preferred_genres = excluded.preferred_genres, preferred_listening_styles = excluded.preferred_listening_styles, favourite_artists = excluded.favourite_artists, updated_at = excluded.updated_at",
+            "INSERT INTO user_preferences (user_id, preferred_languages, preferred_genres, preferred_listening_styles, favourite_artists, music_dna_enabled, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET preferred_languages = excluded.preferred_languages, preferred_genres = excluded.preferred_genres, preferred_listening_styles = excluded.preferred_listening_styles, favourite_artists = excluded.favourite_artists, music_dna_enabled = excluded.music_dna_enabled, updated_at = excluded.updated_at",
             (
                 user["id"],
                 _json_dumps(preferred_languages),
                 _json_dumps(preferred_genres),
                 _json_dumps(preferred_listening_styles),
                 _json_dumps(favourite_artists),
+                int(music_dna_enabled),
                 _sqlite_now(),
             ),
         )
@@ -1055,8 +1085,163 @@ def _save_user_preferences(user, payload, onboarding_completed=None):
         "preferred_genres": preferred_genres,
         "preferred_listening_styles": preferred_listening_styles,
         "favourite_artists": favourite_artists,
+        "music_dna_enabled": music_dna_enabled,
         "onboarding_completed": bool(_coerce_bool(onboarding_completed)) if onboarding_completed is not None else bool(user["onboarding_completed"]),
     })
+
+
+@app.route("/api/v1/users/me/music-dna", methods=["GET"])
+def user_music_dna():
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to view your Music DNA."}), 401
+
+    with closing(_connect_database(AUTH_DATABASE)) as connection:
+        preference = connection.execute(
+            "SELECT preferred_languages, preferred_genres, preferred_listening_styles, favourite_artists, music_dna_enabled "
+            "FROM user_preferences WHERE user_id = ?",
+            (user["id"],),
+        ).fetchone()
+        if preference is None or not bool(preference[4]):
+            return jsonify({"enabled": False, "message": "Enable Music DNA in your preferences to build a private profile."})
+
+        def top_values(query):
+            rows = connection.execute(query, (user["id"],)).fetchall()
+            return [{"name": row[0], "score": float(row[1] or 0), "interactions": int(row[2] or 0)} for row in rows]
+
+        top_languages = top_values(
+            """
+            SELECT s.language,
+                   SUM(CASE WHEN usi.interaction_type IN ('like','save','complete') THEN 2.0
+                            WHEN usi.interaction_type IN ('play','listen') THEN 1.0
+                            WHEN usi.interaction_type = 'skip' THEN -1.0 ELSE 0.0 END) AS score,
+                   COUNT(*) AS interactions
+            FROM user_song_interactions usi
+            JOIN songs s ON s.id = usi.song_id
+            WHERE usi.user_id = ? AND s.language IS NOT NULL AND s.language != ''
+              AND usi.interaction_type IN ('like','save','complete','play','listen','skip')
+            GROUP BY s.language HAVING score > 0
+            ORDER BY score DESC, interactions DESC LIMIT 5
+            """
+        )
+        top_genres = top_values(
+            """
+            SELECT s.genre,
+                   SUM(CASE WHEN usi.interaction_type IN ('like','save','complete') THEN 2.0
+                            WHEN usi.interaction_type IN ('play','listen') THEN 1.0
+                            WHEN usi.interaction_type = 'skip' THEN -1.0 ELSE 0.0 END) AS score,
+                   COUNT(*) AS interactions
+            FROM user_song_interactions usi
+            JOIN songs s ON s.id = usi.song_id
+            WHERE usi.user_id = ? AND s.genre IS NOT NULL AND s.genre != ''
+              AND usi.interaction_type IN ('like','save','complete','play','listen','skip')
+            GROUP BY s.genre HAVING score > 0
+            ORDER BY score DESC, interactions DESC LIMIT 5
+            """
+        )
+        top_artists = top_values(
+            """
+            SELECT a.name,
+                   SUM(CASE WHEN usi.interaction_type IN ('like','save','complete') THEN 2.0
+                            WHEN usi.interaction_type IN ('play','listen') THEN 1.0
+                            WHEN usi.interaction_type = 'skip' THEN -1.0 ELSE 0.0 END) AS score,
+                   COUNT(*) AS interactions
+            FROM user_song_interactions usi
+            JOIN songs s ON s.id = usi.song_id
+            JOIN artists a ON a.id = s.artist_id
+            WHERE usi.user_id = ?
+              AND usi.interaction_type IN ('like','save','complete','play','listen','skip')
+            GROUP BY a.id, a.name HAVING score > 0
+            ORDER BY score DESC, interactions DESC LIMIT 5
+            """
+        )
+        summary = connection.execute(
+            """
+            SELECT
+                SUM(CASE WHEN interaction_type IN ('play','listen','complete') THEN 1 ELSE 0 END),
+                SUM(CASE WHEN interaction_type = 'like' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN interaction_type = 'skip' THEN 1 ELSE 0 END),
+                COUNT(*)
+            FROM user_song_interactions WHERE user_id = ?
+            """,
+            (user["id"],),
+        ).fetchone()
+
+    return jsonify({
+        "enabled": True,
+        "top_languages": top_languages,
+        "top_genres": top_genres,
+        "top_artists": top_artists,
+        "summary": {
+            "plays": int(summary[0] or 0),
+            "likes": int(summary[1] or 0),
+            "skips": int(summary[2] or 0),
+            "interactions": int(summary[3] or 0),
+        },
+        "preferences": {
+            "languages": _normalize_list_field(preference[0]),
+            "genres": _normalize_list_field(preference[1]),
+            "listening_styles": _normalize_list_field(preference[2]),
+            "artists": _normalize_list_field(preference[3]),
+        },
+    })
+
+
+@app.route("/api/v1/users/me/mood-journal", methods=["GET", "POST"])
+def mood_journal():
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to use your mood journal."}), 401
+
+    if request.method == "GET":
+        with closing(_connect_database(AUTH_DATABASE)) as connection:
+            rows = connection.execute(
+                "SELECT id, mood, note, created_at FROM mood_journal_entries "
+                "WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 30",
+                (user["id"],),
+            ).fetchall()
+        return jsonify({
+            "entries": [
+                {"id": row[0], "mood": row[1], "note": row[2], "created_at": row[3]}
+                for row in rows
+            ]
+        })
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Provide a journal entry in JSON format."}), 400
+    mood = payload.get("mood")
+    note = payload.get("note", "")
+    allowed_moods = {"happy", "sad", "angry", "neutral", "surprise", "romantic", "relaxed", "energetic", "motivational", "focused", "devotional"}
+    if not isinstance(mood, str) or mood.strip().lower() not in allowed_moods:
+        return jsonify({"error": "Choose a supported mood before saving."}), 400
+    if not isinstance(note, str) or len(note) > 500:
+        return jsonify({"error": "Journal notes must be 500 characters or fewer."}), 400
+    note = note.strip()
+    with closing(_connect_database(AUTH_DATABASE)) as connection, connection:
+        cursor = connection.execute(
+            "INSERT INTO mood_journal_entries (user_id, mood, note, created_at) VALUES (?, ?, ?, ?)",
+            (user["id"], mood.strip().lower(), note, _sqlite_now()),
+        )
+        entry_id = cursor.lastrowid
+    return jsonify({
+        "entry": {"id": entry_id, "mood": mood.strip().lower(), "note": note, "created_at": _sqlite_now()}
+    }), 201
+
+
+@app.route("/api/v1/users/me/mood-journal/<int:entry_id>", methods=["DELETE"])
+def mood_journal_entry_delete(entry_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to use your mood journal."}), 401
+    with closing(_connect_database(AUTH_DATABASE)) as connection, connection:
+        cursor = connection.execute(
+            "DELETE FROM mood_journal_entries WHERE id = ? AND user_id = ?",
+            (entry_id, user["id"]),
+        )
+    if cursor.rowcount == 0:
+        return jsonify({"error": "Journal entry not found."}), 404
+    return jsonify({"deleted": True, "id": entry_id})
 
 
 @app.route("/api/v1/preferences/onboarding-status")
@@ -1278,6 +1463,15 @@ def assistant_chat():
     intent, intent_provider = extract_music_intent(
         message.strip(), known_artists, previous_intent
     )
+    mode = payload.get("mode", "match")
+    target_mood = payload.get("target_mood")
+    allowed_moods = {"happy", "sad", "angry", "neutral", "surprise", "romantic", "relaxed", "energetic", "motivational", "focused", "devotional"}
+    if mode not in {"match", "change", "explore"}:
+        return jsonify({"error": "Choose Match, Change, or Explore mode."}), 400
+    if target_mood is not None and (
+        not isinstance(target_mood, str) or target_mood.strip().lower() not in allowed_moods
+    ):
+        return jsonify({"error": "Choose a supported target mood."}), 400
     context_vibes = {
         "studying": "focused",
         "travelling": "energetic",
@@ -1285,11 +1479,21 @@ def assistant_chat():
         "workout": "energetic",
         "sleep": "relaxed",
     }
-    vibe = intent["mood"] or context_vibes.get(intent["context"], "neutral")
+    if mode == "change":
+        vibe = (target_mood or intent["mood"] or "").strip().lower()
+        if not vibe:
+            return jsonify({"error": "Choose the mood you want to move toward."}), 400
+    elif mode == "explore":
+        vibe = "neutral"
+    else:
+        vibe = intent["mood"] or context_vibes.get(intent["context"], "neutral")
+
     query_filters = {
         key: intent[key] for key in ("genre", "language", "artist") if intent[key]
     }
-    if intent["mood"]:
+    if mode != "explore" and mode == "match" and intent["mood"]:
+        query_filters["vibe"] = vibe
+    if mode == "change":
         query_filters["vibe"] = vibe
     recommendations = get_user_recommendations(
         str(AUTH_DATABASE),
@@ -1334,6 +1538,7 @@ def assistant_chat():
             "response": response_text,
             "recommendations": recommendations,
             "intent": intent,
+            "mode": mode,
             "used_fallback": used_fallback,
             "intent_provider": intent_provider,
             "personalisation": {
@@ -1546,6 +1751,156 @@ def playlist_tracks_reorder(playlist_id):
     if updated is None:
         return jsonify({"error": "Playlist not found."}), 404
     return jsonify({"playlist": updated})
+
+
+@app.route("/api/v1/users/me/adaptive-session", methods=["POST"])
+def create_adaptive_session():
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to create a listening session."}), 401
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Provide adaptive session options in JSON format."}), 400
+
+    mode = payload.get("mode", "match")
+    mood = payload.get("mood")
+    use_preferences = payload.get("use_preferences", True)
+    use_history = payload.get("use_history", False)
+    if mode not in {"match", "change", "explore"}:
+        return jsonify({"error": "Choose Match, Change, or Explore mode."}), 400
+    allowed_moods = {"happy", "sad", "angry", "neutral", "surprise", "romantic", "relaxed", "energetic", "motivational", "focused", "devotional"}
+    if mood is not None and (
+        not isinstance(mood, str) or mood.strip().lower() not in allowed_moods
+    ):
+        return jsonify({"error": "Choose a supported mood."}), 400
+    if mode == "change" and not mood:
+        return jsonify({"error": "Choose a target mood for Change mode."}), 400
+    if type(use_preferences) is not bool or type(use_history) is not bool:
+        return jsonify({"error": "Personalisation choices must be true or false."}), 400
+    limit = payload.get("limit", 8)
+    try:
+        limit = max(3, min(int(limit), 12))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Session size must be between 3 and 12 tracks."}), 400
+
+    vibe = "neutral" if mode == "explore" else (mood or "neutral")
+    query_filters = {"vibe": vibe} if mode != "explore" and mood else None
+    recommendations = get_user_recommendations(
+        str(AUTH_DATABASE),
+        user_id=user["id"],
+        mood=vibe,
+        vibe=vibe,
+        limit=limit,
+        include_preferences=use_preferences,
+        include_history=use_history,
+        query_filters=query_filters,
+    )
+    if not recommendations:
+        recommendations = get_user_recommendations(
+            str(AUTH_DATABASE),
+            user_id=user["id"],
+            mood=vibe,
+            vibe=vibe,
+            limit=limit,
+            include_preferences=use_preferences,
+            include_history=use_history,
+        )
+    queue = [int(track["id"]) for track in recommendations if isinstance(track.get("id"), int)]
+    state = save_playback_state(
+        str(AUTH_DATABASE),
+        user["id"],
+        {"current_song_id": queue[0] if queue else None, "position_ms": 0, "queue": queue, "shuffle": False, "repeat_mode": "off"},
+    )
+    return jsonify({
+        "mode": mode,
+        "mood": vibe,
+        "recommendations": recommendations,
+        "state": state,
+        "message": "Your session is ready. New Like and Not for me feedback will shape the next session you build.",
+    })
+
+
+@app.route("/api/v1/playlists/<int:playlist_id>/refine", methods=["POST"])
+def refine_playlist(playlist_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to refine playlists."}), 401
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Provide a playlist refinement instruction."}), 400
+    instruction = payload.get("instruction")
+    if not isinstance(instruction, str) or not 3 <= len(instruction.strip()) <= 200:
+        return jsonify({"error": "Enter a refinement instruction between 3 and 200 characters."}), 400
+
+    playlist = get_playlist_details(str(AUTH_DATABASE), playlist_id, user_id=user["id"])
+    if playlist is None:
+        return jsonify({"error": "Playlist not found."}), 404
+    with closing(_connect_database(AUTH_DATABASE)) as connection:
+        known_artists = [
+            row[0] for row in connection.execute(
+                "SELECT name FROM artists ORDER BY LENGTH(name) DESC, name"
+            ).fetchall()
+        ]
+    intent, intent_provider = extract_music_intent(instruction.strip(), known_artists)
+    context_vibes = {"studying": "focused", "travelling": "energetic", "evening": "relaxed", "workout": "energetic", "sleep": "relaxed"}
+    vibe = intent["mood"] or context_vibes.get(intent["context"], "neutral")
+    filters = {key: intent[key] for key in ("genre", "language", "artist") if intent.get(key)}
+    if intent["mood"]:
+        filters["vibe"] = vibe
+    recommendations = get_user_recommendations(
+        str(AUTH_DATABASE),
+        user_id=user["id"],
+        mood=vibe,
+        vibe=vibe,
+        limit=12,
+        include_preferences=True,
+        include_history=False,
+        query_filters=filters,
+    )
+    if not recommendations and filters:
+        recommendations = get_user_recommendations(
+            str(AUTH_DATABASE), user_id=user["id"], mood=vibe, vibe=vibe,
+            limit=12, include_preferences=True, include_history=False,
+        )
+
+    existing_ids = {int(track["id"]) for track in playlist["tracks"]}
+    existing_artists = {str(track.get("artist") or "").casefold() for track in playlist["tracks"]}
+    prefer_new_artists = any(term in instruction.lower() for term in ("new artists", "different artists", "more variety"))
+    additions = []
+    for track in recommendations:
+        if len(additions) >= 5:
+            break
+        if int(track["id"]) in existing_ids:
+            continue
+        if prefer_new_artists and str(track.get("artist") or "").casefold() in existing_artists:
+            continue
+        updated = add_song_to_playlist(str(AUTH_DATABASE), user["id"], playlist_id, int(track["id"]))
+        if updated is not None:
+            additions.append(track)
+    updated_playlist = get_playlist_details(str(AUTH_DATABASE), playlist_id, user_id=user["id"])
+    return jsonify({
+        "playlist": updated_playlist,
+        "added": additions,
+        "added_count": len(additions),
+        "intent": intent,
+        "intent_provider": intent_provider,
+    })
+
+
+@app.route("/api/v1/public/playlists/<int:playlist_id>", methods=["GET"])
+def public_playlist(playlist_id):
+    with closing(_connect_database(AUTH_DATABASE)) as connection:
+        row = connection.execute(
+            "SELECT p.is_public, u.name FROM playlists p JOIN users u ON u.id = p.user_id WHERE p.id = ?",
+            (playlist_id,),
+        ).fetchone()
+    if row is None or not bool(row[0]):
+        return jsonify({"error": "This playlist is private or no longer available."}), 404
+    playlist = get_playlist_details(str(AUTH_DATABASE), playlist_id)
+    if playlist is None:
+        return jsonify({"error": "Playlist not found."}), 404
+    playlist["owner_name"] = row[1]
+    return jsonify({"playlist": playlist})
 
 
 @app.route("/api/v1/users/me/playback-state", methods=["GET", "POST", "DELETE"])
