@@ -35,12 +35,14 @@ describe("AssistantPage", () => {
               provider: "youtube",
               provider_track_id: "AbcdEF12345",
               provider_url: "https://music.example/track-12",
+              explanation: "It matches your selected relaxed vibe.",
             },
           ],
         });
       }
       if (url === "/api/v1/users/me/listening-history" && options.method === "POST") {
-        return jsonResponse({ status: "ok", interaction: "play", song_id: 12 });
+        const payload = JSON.parse(options.body);
+        return jsonResponse({ status: "ok", interaction: payload.event_type, song_id: payload.song_id });
       }
       if (url === "/api/v1/users/me/saved-songs") return jsonResponse({ saved: true });
       if (url === "/api/v1/users/me/playback-state") {
@@ -80,6 +82,25 @@ describe("AssistantPage", () => {
         body: JSON.stringify({ song_id: 12, event_type: "play", source: "assistant" }),
       }),
     ));
+    expect(screen.getByText("Why this fits: It matches your selected relaxed vibe.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Like" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("positive feedback"));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/users/me/listening-history",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ song_id: 12, event_type: "like", source: "assistant" }),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Not for me" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("ranked lower"));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/users/me/listening-history",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ song_id: 12, event_type: "skip", source: "assistant" }),
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("saved"));
 

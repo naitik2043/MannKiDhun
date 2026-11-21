@@ -126,6 +126,29 @@ function AssistantPage({ user, theme, toggleTheme }) {
     }
   }
 
+  async function sendFeedback(song, eventType) {
+    setError("");
+    setActionStatus("");
+    try {
+      await requestJson("/api/v1/users/me/listening-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          song_id: song.id,
+          event_type: eventType,
+          source: "assistant",
+        }),
+      });
+      setActionStatus(
+        eventType === "like"
+          ? "Thanks — your positive feedback has been saved."
+          : "Thanks — this track will be ranked lower in future history-based suggestions.",
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
   async function addToPlaylist(song) {
     const playlistId = selectedPlaylists[song.id];
     if (!playlistId) return;
@@ -275,6 +298,11 @@ function AssistantPage({ user, theme, toggleTheme }) {
                           />
                           <div className="assistant-track-info">
                             <strong>{song.title}</strong>
+                            {song.explanation && (
+                              <small className="assistant-track-explanation">
+                                Why this fits: {song.explanation}
+                              </small>
+                            )}
                             <span>{song.artist}{song.genre ? ` · ${song.genre}` : ""}</span>
                             {song.provider_url && (
                               <a href={song.provider_url} target="_blank" rel="noopener noreferrer">
@@ -285,6 +313,8 @@ function AssistantPage({ user, theme, toggleTheme }) {
                           <div className="assistant-track-actions">
                             <button type="button" onClick={() => playSong(song)}>Play</button>
                             <button type="button" onClick={() => saveSong(song)}>Save</button>
+                            <button type="button" onClick={() => sendFeedback(song, "like")}>Like</button>
+                            <button type="button" onClick={() => sendFeedback(song, "skip")}>Not for me</button>
                             <button type="button" onClick={() => addToQueue(song)}>Add to queue</button>
                             {playlists.length > 0 && (
                               <div className="assistant-playlist-action">
