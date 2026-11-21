@@ -324,6 +324,78 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200)
         self.assertEqual(login.json["user"]["email"], email)
 
+    def test_login_limits_repeated_failed_attempts_and_clears_on_success(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Rate Limited Listener", "email": email, "password": "test-pass-123"},
+        )
+
+        with patch.object(mood_app, "LOGIN_ATTEMPT_LIMIT", 2):
+            first = client.post(
+                "/api/auth/login",
+                json={"email": email, "password": "wrong-password"},
+                environ_overrides={"REMOTE_ADDR": "192.0.2.10"},
+            )
+            self.assertEqual(first.status_code, 401)
+
+            successful = client.post(
+                "/api/auth/login",
+                json={"email": email, "password": "test-pass-123"},
+                environ_overrides={"REMOTE_ADDR": "192.0.2.10"},
+            )
+            self.assertEqual(successful.status_code, 200)
+
+            failed_again = client.post(
+                "/api/auth/login",
+                json={"email": email, "password": "wrong-password"},
+                environ_overrides={"REMOTE_ADDR": "192.0.2.10"},
+            )
+            self.assertEqual(failed_again.status_code, 401)
+
+            second_failure = client.post(
+                "/api/auth/login",
+                json={"email": email, "password": "wrong-password"},
+                environ_overrides={"REMOTE_ADDR": "192.0.2.10"},
+            )
+            self.assertEqual(second_failure.status_code, 401)
+
+            blocked = client.post(
+                "/api/auth/login",
+                json={"email": email, "password": "test-pass-123"},
+                environ_overrides={"REMOTE_ADDR": "192.0.2.10"},
+            )
+            self.assertEqual(blocked.status_code, 429)
+            self.assertGreater(int(blocked.headers["Retry-After"]), 0)
+
+    def test_browser_mutation_rejects_untrusted_origin(self):
+        client = mood_app.app.test_client()
+        response = client.post(
+            "/api/auth/register",
+            json={
+                "name": "Origin Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+            headers={"Origin": "https://attacker.example"},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("origin", response.json["error"].lower())
+
+    def test_browser_mutation_accepts_same_origin(self):
+        client = mood_app.app.test_client()
+        response = client.post(
+            "/api/auth/register",
+            json={
+                "name": "Same Origin Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+            headers={"Origin": "http://localhost"},
+        )
+        self.assertEqual(response.status_code, 201)
+
     def test_profile_requires_authentication_and_updates_account(self):
         client = mood_app.app.test_client()
         unauthorized = client.put(

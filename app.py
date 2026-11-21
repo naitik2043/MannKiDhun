@@ -10,6 +10,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from urllib.parse import urlsplit
 from collections import defaultdict, deque
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
@@ -103,6 +104,76 @@ app.config.update(
     SESSION_REFRESH_EACH_REQUEST=False,
 )
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
+
+LOGIN_ATTEMPT_LIMIT = 5
+LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60
+login_attempt_lock = threading.Lock()
+login_attempts = defaultdict(deque)
+
+
+@app.before_request
+def validate_browser_request_origin():
+    """Reject cross-site browser mutations while preserving configured dev origins."""
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return None
+    if not (request.path.startswith("/api/") or request.path == "/predict"):
+        return None
+
+    source = request.headers.get("Origin")
+    if not source:
+        source = request.headers.get("Referer")
+    if not source:
+        # Non-browser clients and older same-origin clients may omit both headers.
+        return None
+
+    parsed_source = urlsplit(source)
+    if parsed_source.scheme not in {"http", "https"} or not parsed_source.netloc:
+        return jsonify({"error": "This request origin is not allowed."}), 403
+
+    allowed_hosts = {request.host.lower()}
+    configured_origins = os.environ.get("MANNKIDHUN_ALLOWED_ORIGINS", "")
+    for configured_origin in configured_origins.split(","):
+        parsed_allowed = urlsplit(configured_origin.strip())
+        if parsed_allowed.scheme in {"http", "https"} and parsed_allowed.netloc:
+            allowed_hosts.add(parsed_allowed.netloc.lower())
+
+    if parsed_source.netloc.lower() not in allowed_hosts:
+        return jsonify({"error": "This request origin is not allowed."}), 403
+    return None
+
+
+def _login_attempt_key(identifier):
+    normalized = identifier.strip().casefold()
+    identifier_hash = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return (request.remote_addr or "unknown", identifier_hash)
+
+
+def _prune_login_attempts(attempts, now):
+    while attempts and now - attempts[0] >= LOGIN_ATTEMPT_WINDOW_SECONDS:
+        attempts.popleft()
+
+
+def _login_retry_after(key):
+    now = time.monotonic()
+    with login_attempt_lock:
+        attempts = login_attempts[key]
+        _prune_login_attempts(attempts, now)
+        if len(attempts) < LOGIN_ATTEMPT_LIMIT:
+            return 0
+        return max(1, int(LOGIN_ATTEMPT_WINDOW_SECONDS - (now - attempts[0])) + 1)
+
+
+def _record_failed_login(key):
+    now = time.monotonic()
+    with login_attempt_lock:
+        attempts = login_attempts[key]
+        _prune_login_attempts(attempts, now)
+        attempts.append(now)
+
+
+def _clear_login_attempts(key):
+    with login_attempt_lock:
+        login_attempts.pop(key, None)
 
 
 @app.after_request
@@ -738,10 +809,21 @@ def login():
         return jsonify({"error": "Enter your email or username and password."}), 400
 
     identifier = email_or_username.strip()
+    attempt_key = _login_attempt_key(identifier)
+    retry_after = _login_retry_after(attempt_key)
+    if retry_after:
+        return (
+            jsonify({"error": "Too many failed sign-in attempts. Please try again later."}),
+            429,
+            {"Retry-After": str(retry_after)},
+        )
+
     user = get_user_by_identifier(identifier)
     if user is None or not check_password_hash(user["password_hash"], password):
+        _record_failed_login(attempt_key)
         return jsonify({"error": "The email or password you entered is incorrect."}), 401
 
+    _clear_login_attempts(attempt_key)
     session.clear()
     session["user_id"] = user["id"]
     session.permanent = _coerce_bool(payload.get("remember_me", False)) if isinstance(payload, dict) else False
