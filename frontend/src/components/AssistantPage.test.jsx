@@ -23,6 +23,13 @@ describe("AssistantPage", () => {
       if (url === "/api/v1/playlists") {
         return jsonResponse({ playlists: [] });
       }
+      if (url === "/api/v1/users/me/adaptive-session" && options.method === "POST") {
+        return jsonResponse({
+          message: "Adaptive session ready.",
+          recommendations: [{ id: 12, title: "Session track" }],
+          state: { queue: [12] },
+        });
+      }
       if (url === "/api/v1/assistant/chat") {
         return jsonResponse({
           response: "Here is an available track.",
@@ -73,6 +80,22 @@ describe("AssistantPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Catalogue Track")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Discovery mode"), { target: { value: "change" } });
+    fireEvent.change(screen.getByLabelText("Mood you want to move toward"), { target: { value: "happy" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build adaptive session" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/users/me/adaptive-session",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          mode: "change",
+          mood: "happy",
+          use_preferences: false,
+          use_history: false,
+          limit: 8,
+        }),
+      }),
+    ));
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     expect(screen.getByTitle("Play Catalogue Track by Catalogue Artist")).toBeTruthy();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(

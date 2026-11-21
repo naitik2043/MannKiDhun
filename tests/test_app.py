@@ -678,6 +678,168 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(playlists, 0)
         self.assertEqual(playback_states, 0)
 
+    def test_mood_journal_is_private_and_can_be_deleted(self):
+        client = mood_app.app.test_client()
+        self.assertEqual(client.get("/api/v1/users/me/mood-journal").status_code, 401)
+
+        first_email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Journal Owner", "email": first_email, "password": "test-pass-123"},
+        )
+        created = client.post(
+            "/api/v1/users/me/mood-journal",
+            json={"mood": "relaxed", "note": "A quiet evening with music."},
+        )
+        self.assertEqual(created.status_code, 201)
+        entry_id = created.json["entry"]["id"]
+        self.assertEqual(created.json["entry"]["mood"], "relaxed")
+        self.assertEqual(
+            client.get("/api/v1/users/me/mood-journal").json["entries"][0]["note"],
+            "A quiet evening with music.",
+        )
+
+        second_client = mood_app.app.test_client()
+        second_client.post(
+            "/api/auth/register",
+            json={
+                "name": "Another Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        self.assertEqual(
+            second_client.delete(f"/api/v1/users/me/mood-journal/{entry_id}").status_code,
+            404,
+        )
+        self.assertEqual(client.delete(f"/api/v1/users/me/mood-journal/{entry_id}").status_code, 200)
+        self.assertEqual(client.get("/api/v1/users/me/mood-journal").json["entries"], [])
+
+    def test_music_dna_requires_opt_in_and_preserves_consent(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        registration = client.post(
+            "/api/auth/register",
+            json={"name": "DNA Listener", "email": email, "password": "test-pass-123"},
+        )
+        self.assertEqual(registration.status_code, 201)
+        self.assertFalse(client.get("/api/v1/users/me/music-dna").json["enabled"])
+
+        enabled = client.post("/api/v1/users/me/music-dna/consent", json={"enabled": True})
+        self.assertEqual(enabled.status_code, 200)
+        self.assertTrue(enabled.json["enabled"])
+
+        preferences = client.put(
+            "/api/v1/preferences",
+            json={"preferred_languages": ["Hindi"], "preferred_genres": ["Pop"]},
+        )
+        self.assertEqual(preferences.status_code, 200)
+        self.assertTrue(preferences.json["music_dna_enabled"])
+        dna = client.get("/api/v1/users/me/music-dna")
+        self.assertEqual(dna.status_code, 200)
+        self.assertTrue(dna.json["enabled"])
+        self.assertIn("top_languages", dna.json)
+        self.assertIn("summary", dna.json)
+
+        disabled = client.post("/api/v1/users/me/music-dna/consent", json={"enabled": False})
+        self.assertFalse(disabled.json["enabled"])
+        self.assertFalse(client.get("/api/v1/users/me/music-dna").json["enabled"])
+
+    def test_adaptive_session_saves_recommendation_queue(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Session Listener", "email": email, "password": "test-pass-123"},
+        )
+        response = client.post(
+            "/api/v1/users/me/adaptive-session",
+            json={
+                "mode": "explore",
+                "use_preferences": False,
+                "use_history": False,
+                "limit": 6,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(len(response.json["recommendations"]), 0)
+        saved = client.get("/api/v1/users/me/playback-state").json["state"]
+        self.assertEqual(
+            saved["queue"],
+            [track["id"] for track in response.json["recommendations"]],
+        )
+
+    def test_public_playlist_endpoint_exposes_only_public_playlists(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Playlist Owner", "email": email, "password": "test-pass-123"},
+        )
+        private = client.post("/api/v1/playlists", json={"name": "Private mix"})
+        public = client.post("/api/v1/playlists", json={"name": "Shared mix", "is_public": True})
+        self.assertEqual(private.status_code, 201)
+        self.assertEqual(public.status_code, 201)
+        private_id = private.json["playlist"]["id"]
+        public_id = public.json["playlist"]["id"]
+
+        self.assertEqual(client.get(f"/api/v1/public/playlists/{private_id}").status_code, 404)
+        shared = client.get(f"/api/v1/public/playlists/{public_id}")
+        self.assertEqual(shared.status_code, 200)
+        self.assertTrue(shared.json["playlist"]["is_public"])
+        self.assertEqual(shared.json["playlist"]["name"], "Shared mix")
+
+    def test_playlist_refinement_adds_catalogue_tracks_matching_the_request(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Playlist Editor", "email": email, "password": "test-pass-123"},
+        )
+        playlist = client.post("/api/v1/playlists", json={"name": "Evening mix"}).json["playlist"]
+        response = client.post(
+            f"/api/v1/playlists/{playlist['id']}/refine",
+            json={"instruction": "add peaceful music"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertGreater(response.json["added_count"], 0)
+        self.assertTrue(all(track["id"] for track in response.json["added"]))
+
+    def test_assistant_change_mode_uses_the_selected_target_mood(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Mood Listener", "email": email, "password": "test-pass-123"},
+        )
+        extracted = {
+            "mood": None,
+            "genre": None,
+            "language": None,
+            "artist": None,
+            "context": None,
+        }
+        recommendations = [{"id": 1, "title": "A catalogue track"}]
+        with (
+            patch.object(mood_app, "extract_music_intent", return_value=(extracted, "rules")),
+            patch.object(mood_app, "get_user_recommendations", return_value=recommendations) as recommend,
+        ):
+            response = client.post(
+                "/api/v1/assistant/chat",
+                json={
+                    "message": "Help me change my mood",
+                    "mode": "change",
+                    "target_mood": "relaxed",
+                    "use_preferences": False,
+                    "use_history": False,
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["mode"], "change")
+        self.assertEqual(recommend.call_args.kwargs["vibe"], "relaxed")
+        self.assertEqual(recommend.call_args.kwargs["query_filters"]["vibe"], "relaxed")
+
+
 
 if __name__ == "__main__":
     unittest.main()
