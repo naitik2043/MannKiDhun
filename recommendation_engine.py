@@ -157,6 +157,62 @@ DEFAULT_SONGS = [
         "tags": ["dreamy", "calm", "indie"],
     },
     {
+        "title": "Lover",
+        "artist": "Diljit Dosanjh",
+        "album": "MoonChild Era",
+        "language": "Punjabi",
+        "genre": "Punjabi Pop",
+        "provider": "youtube",
+        "provider_track_id": "mH_LFkWxpI0",
+        "provider_url": "https://www.youtube.com/watch?v=mH_LFkWxpI0",
+        "thumbnail_url": "https://img.youtube.com/vi/mH_LFkWxpI0/hqdefault.jpg",
+        "explicit": 0,
+        "vibes": ["romantic", "relaxed"],
+        "tags": ["punjabi", "romantic", "melodic", "independent"],
+    },
+    {
+        "title": "Amar Mon Maney Na",
+        "artist": "Arindom",
+        "album": "RNT Project",
+        "language": "Bengali",
+        "genre": "Rabindra Sangeet",
+        "provider": "youtube",
+        "provider_track_id": "hVOd3u9R8uU",
+        "provider_url": "https://www.youtube.com/watch?v=hVOd3u9R8uU",
+        "thumbnail_url": "https://img.youtube.com/vi/hVOd3u9R8uU/hqdefault.jpg",
+        "explicit": 0,
+        "vibes": ["peaceful", "romantic", "relaxed"],
+        "tags": ["bengali", "rabindra sangeet", "classical", "calm"],
+    },
+    {
+        "title": "Jalso (Title Track)",
+        "artist": "Nakash Aziz, Divya Kumar, Pamela Jain",
+        "album": "Jalso",
+        "language": "Gujarati",
+        "genre": "Garba",
+        "provider": "youtube",
+        "provider_track_id": "N4Q3HSmpDMc",
+        "provider_url": "https://www.youtube.com/watch?v=N4Q3HSmpDMc",
+        "thumbnail_url": "https://img.youtube.com/vi/N4Q3HSmpDMc/hqdefault.jpg",
+        "explicit": 0,
+        "vibes": ["happy", "energetic", "motivational"],
+        "tags": ["gujarati", "garba", "folk", "celebration", "dance"],
+    },
+    {
+        "title": "Samajavaragamana",
+        "artist": "Sid Sriram",
+        "album": "Ala Vaikunthapurramuloo",
+        "language": "Telugu",
+        "genre": "Telugu Film",
+        "provider": "youtube",
+        "provider_track_id": "aFl7e6f4Qlg",
+        "provider_url": "https://www.youtube.com/watch?v=aFl7e6f4Qlg",
+        "thumbnail_url": "https://img.youtube.com/vi/aFl7e6f4Qlg/hqdefault.jpg",
+        "explicit": 0,
+        "vibes": ["romantic", "relaxed", "happy"],
+        "tags": ["telugu", "film music", "melody", "romantic"],
+    },
+    {
         "title": "Believer",
         "artist": "Imagine Dragons",
         "album": "Evolve",
@@ -703,8 +759,9 @@ def create_music_catalogue(database_path):
         _ensure_table_column(connection, "user_song_interactions", "position_ms", "position_ms INTEGER DEFAULT 0")
         _ensure_table_column(connection, "user_song_interactions", "duration_ms", "duration_ms INTEGER DEFAULT 0")
 
-        if connection.execute("SELECT COUNT(*) FROM songs").fetchone()[0] == 0:
-            seed_catalogue(connection)
+        # The seed routine is idempotent: insert newly curated catalogue records
+        # without duplicating or overwriting existing listener/library data.
+        seed_catalogue(connection)
 
 
 def _get_or_create_artist(connection, artist_name):

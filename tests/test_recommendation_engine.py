@@ -3,7 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from recommendation_engine import _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue
+from recommendation_engine import DEFAULT_SONGS, _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue
 
 
 class RecommendationEngineTests(unittest.TestCase):
@@ -122,13 +122,21 @@ class RecommendationEngineTests(unittest.TestCase):
         os.close(fd)
         try:
             create_music_catalogue(database_path)
+            create_music_catalogue(database_path)
             with sqlite3.connect(database_path) as connection:
                 count = connection.execute("SELECT COUNT(*) FROM songs").fetchone()[0]
                 first = connection.execute(
                     "SELECT title, provider FROM songs ORDER BY id LIMIT 1"
                 ).fetchone()
+                regional_languages = {
+                    row[0] for row in connection.execute(
+                        "SELECT DISTINCT language FROM songs"
+                    ).fetchall()
+                }
             self.assertGreater(count, 0)
             self.assertIsNotNone(first)
+            self.assertTrue({"Hindi", "English", "Punjabi", "Bengali", "Gujarati", "Telugu"} <= regional_languages)
+            self.assertEqual(count, len(DEFAULT_SONGS))
         finally:
             pass
 
