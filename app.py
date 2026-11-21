@@ -145,6 +145,18 @@ def validate_browser_request_origin():
 
     if parsed_source.netloc.lower() not in allowed_hosts:
         return jsonify({"error": "This request origin is not allowed."}), 403
+
+    expected_token = session.get("mannkidhun_csrf_token")
+    cookie_token = request.cookies.get("mannkidhun_csrf")
+    header_token = request.headers.get("X-CSRF-Token")
+    if (
+        not isinstance(expected_token, str)
+        or not isinstance(cookie_token, str)
+        or not isinstance(header_token, str)
+        or not secrets.compare_digest(expected_token, cookie_token)
+        or not secrets.compare_digest(expected_token, header_token)
+    ):
+        return jsonify({"error": "The browser request could not be verified. Refresh and try again."}), 403
     return None
 
 
@@ -193,6 +205,20 @@ def apply_security_headers(response):
     )
     if app.config.get("SESSION_COOKIE_SECURE"):
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+
+    csrf_token = session.get("mannkidhun_csrf_token")
+    if not isinstance(csrf_token, str) or not csrf_token:
+        csrf_token = secrets.token_urlsafe(32)
+        session["mannkidhun_csrf_token"] = csrf_token
+    response.set_cookie(
+        "mannkidhun_csrf",
+        csrf_token,
+        httponly=False,
+        secure=bool(app.config.get("SESSION_COOKIE_SECURE")),
+        samesite="Lax",
+        path="/",
+        max_age=int(app.permanent_session_lifetime.total_seconds()),
+    )
     return response
 
 

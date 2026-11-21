@@ -213,7 +213,8 @@ See [Deployment and operations](docs/DEPLOYMENT.md) and [Database](docs/DATABASE
 - Voice features depend on the browser's speech APIs and may not be available in every browser.
 - Kannada, Urdu, Sanskrit, and other regional-language catalogue coverage needs verified additions; language recognition in the assistant does not mean that tracks are already available.
 - Password-reset and verification email delivery are not configured.
-- Login and assistant rate limits are process-local, not distributed; the origin guard is defense in depth and is not a synchronizer-token CSRF implementation.
+- Browser API mutations use a synchronizer-token CSRF cookie/header plus the configured origin allowlist. Requests omitting both Origin and Referer remain permitted for trusted non-browser / legacy compatibility.
+- Login and assistant rate limits are process-local, not distributed.
 - SQLite migrations and manual backup / restore tooling are included, but scheduled off-site backups and restore drills are not. Login and assistant limits remain process-local, and the Free Render filesystem is ephemeral; this is not a durable multi-worker production setup.
 
 ## Product and market research

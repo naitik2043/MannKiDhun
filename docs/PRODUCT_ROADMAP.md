@@ -33,7 +33,7 @@ This roadmap separates shipped behaviour from the remaining product work. Implem
 
 - Move user/library persistence from free Render ephemeral SQLite storage to a managed durable database and file store.
 - Schedule encrypted off-site backups and complete restore drills. Versioned SQLite migrations and integrity-checked manual backup / restore tools now exist, but they are not scheduled or managed.
-- Extend the new failed-login throttling and browser-origin checks with a synchronizer-token CSRF mechanism and a shared rate-limit store for multi-worker deployments; review the origin allowlist and reverse-proxy trust in production.
+- Extend the browser CSRF and failed-login protections with a shared rate-limit store for multi-worker deployments; review the origin allowlist and reverse-proxy trust in production. The current compatibility path permits trusted non-browser requests that omit both Origin and Referer.
 - Configure real password recovery and verification email delivery.
 - Add dependency scanning, deployment monitoring, and alerting.
 - Evaluate the expression model on a labeled, subject-separated dataset before making accuracy claims.

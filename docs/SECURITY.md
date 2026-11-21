@@ -4,6 +4,7 @@
 
 - Failed sign-in attempts are throttled after five failures for the same identifier / client-address pair within a 15-minute window. The in-memory counter clears after successful sign-in and is local to one process.
 - Browser mutation requests to API and expression routes reject an Origin / Referer host that is not the request host or a configured MANNKIDHUN_ALLOWED_ORIGINS host.
+- Browser mutation requests must carry a synchronizer token in both the same-site `mannkidhun_csrf` cookie and the `X-CSRF-Token` header. The frontend attaches the header automatically for same-origin API / expression mutations; tokens are rotated when the signed-in session is cleared.
 
 - Passwords are stored with Werkzeug password hashing.
 - Session cookies are HttpOnly and SameSite=Lax; Secure cookies are opt-in through `MANNKIDHUN_COOKIE_SECURE=1`.
@@ -24,7 +25,7 @@
 ## Known gaps before production
 
 - Password-reset and verification email delivery are not implemented. The reset endpoint cannot currently be used through a normal user flow.
-- The origin check is defense in depth, not a synchronizer-token CSRF implementation. Requests that omit both Origin and Referer are currently allowed for non-browser / legacy compatibility.
+- Requests that omit both Origin and Referer are allowed for non-browser / legacy compatibility and therefore do not receive the browser CSRF-token enforcement. Keep that compatibility limited to trusted non-browser clients.
 - Login and assistant throttles are process-local, so limits reset on restart and are not shared across workers or hosts. A shared rate-limit store is required before scaling beyond the current single-process deployment.
 - `SECRET_KEY` falls back to a newly generated process-local value when unset; deployments must supply a stable secret.
 - Secure cookies and HSTS require explicit HTTPS configuration. Reverse-proxy trust, HTTPS enforcement, a restrictive Content Security Policy, production error monitoring, and alerting still need deployment-level review.

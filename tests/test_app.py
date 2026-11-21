@@ -386,6 +386,9 @@ class ApiRouteTests(unittest.TestCase):
 
     def test_browser_mutation_accepts_same_origin(self):
         client = mood_app.app.test_client()
+        client.get("/healthz")
+        csrf_cookie = client.get_cookie("mannkidhun_csrf")
+        self.assertIsNotNone(csrf_cookie)
         response = client.post(
             "/api/auth/register",
             json={
@@ -393,9 +396,44 @@ class ApiRouteTests(unittest.TestCase):
                 "email": f"{uuid.uuid4().hex}@example.com",
                 "password": "test-pass-123",
             },
-            headers={"Origin": "http://localhost"},
+            headers={
+                "Origin": "http://localhost",
+                "X-CSRF-Token": csrf_cookie.value,
+            },
         )
         self.assertEqual(response.status_code, 201)
+
+    def test_browser_mutation_rejects_missing_or_invalid_csrf_token(self):
+        client = mood_app.app.test_client()
+        client.get("/healthz")
+        csrf_cookie = client.get_cookie("mannkidhun_csrf")
+        self.assertIsNotNone(csrf_cookie)
+        payload = {
+            "name": "CSRF Listener",
+            "email": f"{uuid.uuid4().hex}@example.com",
+            "password": "test-pass-123",
+        }
+
+        missing = client.post(
+            "/api/auth/register",
+            json=payload,
+            headers={"Origin": "http://localhost"},
+        )
+        self.assertEqual(missing.status_code, 403)
+
+        invalid = client.post(
+            "/api/auth/register",
+            json=payload,
+            headers={"Origin": "http://localhost", "X-CSRF-Token": "wrong-token"},
+        )
+        self.assertEqual(invalid.status_code, 403)
+
+        valid = client.post(
+            "/api/auth/register",
+            json=payload,
+            headers={"Origin": "http://localhost", "X-CSRF-Token": csrf_cookie.value},
+        )
+        self.assertEqual(valid.status_code, 201)
 
     def test_profile_requires_authentication_and_updates_account(self):
         client = mood_app.app.test_client()
