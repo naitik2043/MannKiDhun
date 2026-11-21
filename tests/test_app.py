@@ -772,6 +772,144 @@ class ApiRouteTests(unittest.TestCase):
             [track["id"] for track in response.json["recommendations"]],
         )
 
+    def test_playlist_invites_allow_editor_collaboration_and_revoke_access(self):
+        owner = mood_app.app.test_client()
+        owner.post(
+            "/api/auth/register",
+            json={
+                "name": "Playlist Owner",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        playlist = owner.post(
+            "/api/v1/playlists",
+            json={"name": "Collaborative Mix"},
+        ).json["playlist"]
+        playlist_id = playlist["id"]
+
+        with closing(mood_app._connect_database(mood_app.AUTH_DATABASE)) as connection:
+            song_id = connection.execute("SELECT id FROM songs ORDER BY id LIMIT 1").fetchone()[0]
+
+        invitation = owner.post(
+            f"/api/v1/playlists/{playlist_id}/invites",
+            json={"role": "editor"},
+        )
+        self.assertEqual(invitation.status_code, 201)
+        invite_url = invitation.json["invite_url"]
+        token = invite_url.split("invite_token=", 1)[1]
+
+        editor = mood_app.app.test_client()
+        editor.post(
+            "/api/auth/register",
+            json={
+                "name": "Playlist Editor",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        accepted = editor.post(
+            f"/api/v1/playlists/{playlist_id}/invites/accept",
+            json={"token": token},
+        )
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(accepted.json["playlist"]["role"], "editor")
+        self.assertFalse(accepted.json["playlist"]["is_owner"])
+
+        shared_playlists = editor.get("/api/v1/playlists").json["playlists"]
+        self.assertEqual(shared_playlists[0]["name"], "Collaborative Mix")
+        self.assertEqual(shared_playlists[0]["role"], "editor")
+        self.assertFalse(shared_playlists[0]["is_owner"])
+
+        added = editor.post(
+            f"/api/v1/playlists/{playlist_id}/tracks",
+            json={"song_id": song_id},
+        )
+        self.assertEqual(added.status_code, 200)
+        self.assertEqual(len(added.json["playlist"]["tracks"]), 1)
+
+        collaborators = owner.get(
+            f"/api/v1/playlists/{playlist_id}/collaborators"
+        )
+        self.assertEqual(collaborators.status_code, 200)
+        self.assertEqual(collaborators.json["collaborators"][0]["name"], "Playlist Editor")
+        self.assertEqual(
+            editor.get(f"/api/v1/playlists/{playlist_id}/collaborators").status_code,
+            403,
+        )
+        self.assertEqual(
+            editor.delete(f"/api/v1/playlists/{playlist_id}").status_code,
+            404,
+        )
+
+        self.assertEqual(
+            owner.delete(f"/api/v1/playlists/{playlist_id}/invites").status_code,
+            200,
+        )
+        another_listener = mood_app.app.test_client()
+        another_listener.post(
+            "/api/auth/register",
+            json={
+                "name": "Late Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        self.assertEqual(
+            another_listener.post(
+                f"/api/v1/playlists/{playlist_id}/invites/accept",
+                json={"token": token},
+            ).status_code,
+            404,
+        )
+
+    def test_viewer_playlist_invite_does_not_grant_edit_access(self):
+        owner = mood_app.app.test_client()
+        owner.post(
+            "/api/auth/register",
+            json={
+                "name": "Playlist Owner",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        playlist_id = owner.post(
+            "/api/v1/playlists",
+            json={"name": "Read Only Mix"},
+        ).json["playlist"]["id"]
+        invite = owner.post(
+            f"/api/v1/playlists/{playlist_id}/invites",
+            json={"role": "viewer"},
+        )
+        self.assertEqual(invite.status_code, 201)
+        token = invite.json["invite_url"].split("invite_token=", 1)[1]
+
+        viewer = mood_app.app.test_client()
+        viewer.post(
+            "/api/auth/register",
+            json={
+                "name": "Playlist Viewer",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        accepted = viewer.post(
+            f"/api/v1/playlists/{playlist_id}/invites/accept",
+            json={"token": token},
+        )
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(accepted.json["playlist"]["role"], "viewer")
+        with closing(mood_app._connect_database(mood_app.AUTH_DATABASE)) as connection:
+            song_id = connection.execute("SELECT id FROM songs ORDER BY id LIMIT 1").fetchone()[0]
+        self.assertEqual(
+            viewer.post(
+                f"/api/v1/playlists/{playlist_id}/tracks",
+                json={"song_id": song_id},
+            ).status_code,
+            404,
+        )
+
+
     def test_public_playlist_directory_lists_only_shared_playlists(self):
         client = mood_app.app.test_client()
         client.post(
