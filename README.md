@@ -24,7 +24,7 @@ MannKiDhun is an open-source music discovery app with a **JavaScript/React front
 - Refine playlists with natural-language commands to add tracks, remove a named/last track, or move a track to the beginning/end.
 - Build an adaptive queue and use Start, Previous, and Next controls. Queue progress is saved to your account; the current YouTube embed is not a full automatic streaming player.
 - Dictate requests in English (India) or Hindi using browser speech recognition, and use Read aloud for spoken assistant responses where the browser supports speech synthesis.
-- Explore Indian-language intent filters including Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati, Malayalam, Kannada, Urdu, and Sanskrit. The starter catalogue includes verified Punjabi, Bengali, Gujarati, and Telugu additions; other languages require more verified track entries.
+- Explore Indian-language intent filters including Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati, Malayalam, Kannada, Urdu, and Sanskrit. The starter catalogue includes verified Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi additions; other languages still require more verified track entries.
 - Use the dashboard to review recent listening activity, saved playlists, Music DNA, and journal entries.
 - Use the responsive interface on desktop or mobile, with light and dark themes.
 

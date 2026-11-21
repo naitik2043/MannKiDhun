@@ -13,13 +13,13 @@ This roadmap separates shipped behaviour from the remaining product work. Implem
 - Natural-language playlist editing for add, remove, and reorder actions.
 - Public playlists plus a community directory; invite-based viewer/editor collaboration with seven-day links, role changes, collaborator removal, and invite revocation.
 - Browser-based voice dictation in Hindi and English (India), plus browser Read aloud for assistant replies.
-- Verified initial regional catalogue additions for Punjabi, Bengali, Gujarati, and Telugu, alongside existing Hindi and English starter tracks. Supported language intent parsing is broader than currently populated songs.
+- Verified initial regional catalogue additions for Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi, alongside existing Hindi and English starter tracks. Supported language intent parsing is broader than currently populated songs.
 
 ## Remaining product work
 
 1. **Full player experience** — a persistent site-wide player, media-session integration, automatic track-ended detection, durable position tracking, repeat/shuffle, and queue hand-off across pages. Current controls are assistant-page scoped and manually advanced.
 2. **Real-time collaborative sessions** — live presence, simultaneous editing indicators, conflict resolution, activity stream, and invited-user notifications. Current collaboration is authenticated role-based editing without live presence.
-3. **Verified India-first catalogue expansion** — continue adding sourced tracks for Tamil, Malayalam, Kannada, Marathi, Urdu, and other regional scenes. Never invent provider IDs or playback URLs.
+3. **Verified India-first catalogue expansion** — continue adding sourced tracks for Kannada, Urdu, and other regional scenes. Never invent provider IDs or playback URLs.
 4. **Richer context and personalization** — energy/tempo/era metadata, user-tunable diversity, profile coverage/confidence, export/reset, and session adaptation based on activity during playback.
 5. **Conversational voice** — turn-taking, interruptible speech, and spoken follow-up questions. Current support is browser dictation plus text-to-speech.
 6. **Wearable/context integrations** — only after privacy, consent, and reliability design.

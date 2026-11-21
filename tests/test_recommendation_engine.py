@@ -135,7 +135,10 @@ class RecommendationEngineTests(unittest.TestCase):
                 }
             self.assertGreater(count, 0)
             self.assertIsNotNone(first)
-            self.assertTrue({"Hindi", "English", "Punjabi", "Bengali", "Gujarati", "Telugu"} <= regional_languages)
+            self.assertTrue({
+                "Hindi", "English", "Punjabi", "Bengali", "Gujarati",
+                "Telugu", "Tamil", "Malayalam", "Marathi",
+            } <= regional_languages)
             self.assertEqual(count, len(DEFAULT_SONGS))
         finally:
             pass
