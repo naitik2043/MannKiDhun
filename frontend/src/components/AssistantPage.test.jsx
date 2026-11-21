@@ -122,7 +122,7 @@ describe("AssistantPage", () => {
     fireEvent.change(screen.getByLabelText("Your music request"), {
       target: { value: "peaceful music" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.submit(document.querySelector(".assistant-composer"));
 
     expect(await screen.findByText("Catalogue Track")).toBeTruthy();
     const chatCall = fetchMock.mock.calls.find(([url]) => url === "/api/v1/assistant/chat");
