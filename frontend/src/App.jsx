@@ -150,12 +150,16 @@ function AuthenticatedPage({ theme, toggleTheme, Page }) {
 }
 
 function AppRoutes() {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [currentLocation, setCurrentLocation] = useState(
+    window.location.pathname + window.location.search,
+  );
+  const currentUrl = new URL(currentLocation, window.location.origin);
+  const currentPath = currentUrl.pathname;
   const path = currentPath === "/" ? "/" : (currentPath.endsWith("/") ? currentPath.slice(0, -1) : currentPath);
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
-    const updatePath = () => setCurrentPath(window.location.pathname);
+    const updatePath = () => setCurrentLocation(window.location.pathname + window.location.search);
     const handleInternalNavigation = (event) => {
       if (
         event.defaultPrevented ||
@@ -173,7 +177,7 @@ function AppRoutes() {
       event.preventDefault();
       const nextUrl = destination.pathname + destination.search + destination.hash;
       window.history.pushState({}, "", nextUrl);
-      setCurrentPath(destination.pathname);
+      setCurrentLocation(destination.pathname + destination.search);
       if (destination.pathname === window.location.pathname && destination.hash) {
         document.querySelector(destination.hash)?.scrollIntoView({ behavior: "smooth" });
       }
@@ -262,6 +266,7 @@ function AppRoutes() {
   if (path === "/assistant") {
     return (
       <AuthenticatedPage
+        key={currentLocation}
         Page={AssistantPage}
         theme={theme}
         toggleTheme={toggleTheme}

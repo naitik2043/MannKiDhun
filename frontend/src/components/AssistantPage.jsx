@@ -739,7 +739,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
       return;
     }
     const trackId = song.provider_track_id;
-    if (song.provider === "youtube" && typeof trackId === "string" && /^[\\w-]{11}$/.test(trackId)) {
+    if (song.provider === "youtube" && typeof trackId === "string" && /^[a-zA-Z0-9_-]{11}$/.test(trackId)) {
       recordPlay(song);
       setActiveSong(song);
       return;

@@ -40,7 +40,7 @@ function PlayerProbe() {
         {player.currentSong?.title || "No active track"} · {player.queue.length} queued · {player.currentIndex}
       </p>
       <button onClick={() => player.playQueue([trackOne, trackTwo], 0)}>Start queue</button>
-      <button onClick={() => player.nextTrack()}>Next track</button>
+      <button onClick={() => player.nextTrack()}>Advance test queue</button>
       <button onClick={() => player.addToQueue(trackThree)}>Add third track</button>
       <button onClick={() => player.updateUpcomingTracks([trackThree])}>Refresh upcoming</button>
       <button onClick={() => player.setRepeatMode("all")}>Repeat all</button>
