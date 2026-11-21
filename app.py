@@ -1765,9 +1765,22 @@ def listening_history():
             song_id = int(song_id)
         except (TypeError, ValueError):
             return jsonify({"error": "Provide a valid song id."}), 400
+        allowed_events = {"like", "skip", "listen", "play", "complete", "save"}
+        if not isinstance(event_type, str) or event_type.strip().lower() not in allowed_events:
+            return jsonify({"error": "Choose a supported interaction type."}), 400
+        event_type = event_type.strip().lower()
         source = payload.get("source") or payload.get("context") or "library"
+        if not isinstance(source, str) or len(source) > 60:
+            return jsonify({"error": "Interaction source must be 60 characters or fewer."}), 400
         position_ms = payload.get("position_ms", 0)
         duration_ms = payload.get("duration_ms", 0)
+        try:
+            position_ms = int(position_ms)
+            duration_ms = int(duration_ms)
+        except (TypeError, ValueError, OverflowError):
+            return jsonify({"error": "Playback positions must be valid non-negative integers."}), 400
+        if position_ms < 0 or duration_ms < 0:
+            return jsonify({"error": "Playback positions cannot be negative."}), 400
         if not record_user_interaction(
             str(AUTH_DATABASE),
             user["id"],
@@ -1898,7 +1911,7 @@ def playlist_collaborator_detail(playlist_id, collaborator_user_id):
 
     payload = request.get_json(silent=True)
     role = payload.get("role") if isinstance(payload, dict) else None
-    if role not in {"viewer", "editor"}:
+    if not isinstance(role, str) or role not in {"viewer", "editor"}:
         return jsonify({"error": "Role must be viewer or editor."}), 400
     try:
         updated = update_playlist_collaborator(
