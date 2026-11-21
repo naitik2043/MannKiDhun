@@ -11,6 +11,7 @@ import IntroSection from "./components/IntroSection.jsx";
 import MoodDetectionCard from "./components/MoodDetectionCard.jsx";
 import MusicRecommendationCard from "./components/MusicRecommendationCard.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
+import PublicPlaylistPage from "./components/PublicPlaylistPage.jsx";
 import SiteFooter from "./components/SiteFooter.jsx";
 import { useCamera } from "./hooks/useCamera.js";
 import { useMoodDetection } from "./hooks/useMoodDetection.js";
@@ -138,6 +139,17 @@ function AuthenticatedPage({ theme, toggleTheme, Page }) {
 function App() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const { theme, toggleTheme } = useTheme();
+
+  const publicPlaylistMatch = path.match(/^\\/playlists\\/(\\d+)$/);
+  if (publicPlaylistMatch) {
+    return (
+      <PublicPlaylistPage
+        playlistId={Number(publicPlaylistMatch[1])}
+        theme={theme}
+        toggleTheme={toggleTheme}
+      />
+    );
+  }
 
   if (path === "/signin" || path === "/signup") {
     return (
