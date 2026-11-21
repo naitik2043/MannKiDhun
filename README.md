@@ -7,7 +7,7 @@
 ![Python 3.11](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react)
 
-[Demo](https://mannkidhun.onrender.com) · [Community playlists](https://mannkidhun.onrender.com/community) · [Catalogue sources](docs/CATALOGUE_SOURCES.md) · [Competitive analysis](docs/COMPETITIVE_ANALYSIS.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
+[Demo](https://mannkidhun.onrender.com) · [Community playlists](https://mannkidhun.onrender.com/community) · [Catalogue sources](docs/CATALOGUE_SOURCES.md) · [Competitive analysis](docs/COMPETITIVE_ANALYSIS.md) · [17-upgrade status](docs/UPGRADE_STATUS.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
 
 MannKiDhun is an open-source music discovery application built with **React, Vite, Flask, and SQLite**. Listeners can choose a mood, describe a moment in natural language, optionally request an expression-based suggestion, and discover tracks from a curated catalogue. Recommendations can use declared music preferences, explicit feedback, and an optional listening context.
 
@@ -17,11 +17,11 @@ MannKiDhun is an open-source music discovery application built with **React, Vit
 
 | Capability | What it does |
 | --- | --- |
-| Mood check-in | Choose a vibe manually or opt into a five-frame facial-expression estimate. |
+| Mood check-in | Choose a vibe manually or opt into a five-frame facial-expression estimate. Camera estimates require explicit confirmation before a recommendation is shown; manual selection can correct the suggestion. |
 | Match / Change / Explore | Find music for a current mood, move toward a target mood, or browse beyond mood filters. |
 | Context-aware discovery | Select studying, travelling, evening, workout, or sleep. A transparent tag-affinity heuristic adjusts catalogue ranking. |
 | Explainable recommendations | See catalogue-backed reasons and respond with Like or Not for me feedback. |
-| Music Assistant | Search the local catalogue with text or browser speech dictation in Hindi / English (India). |
+| Music Assistant | Search the local catalogue with text or browser speech dictation in Hindi / English (India). A confirmed check-in can prefill Match mode; local rules recognize common Roman Hinglish and selected native-script phrases. |
 | Adaptive sessions | Build a queue and save it to playback state. Tracks are advanced manually in the current version. |
 | Personal Music DNA | Opt in to a private summary of recurring languages, genres, artists, listening styles, and vibes. Export or reset the profile. |
 | Mood & Music Journal | Write private mood notes and review recent patterns. Entries are manually created, never inferred from camera frames. |
@@ -95,7 +95,7 @@ In a second terminal:
 npm run dev
 \`\`\`
 
-Open the Vite URL printed in the terminal (normally \`http://127.0.0.1:5173\`). The Vite development server proxies \`/api\` and \`/predict\` to Flask at \`http://127.0.0.1:5001\`. Create an account at \`/signup\`, then open the Assistant or mood check-in.
+Open the Vite URL printed in the terminal (normally \`http://127.0.0.1:5173\`). The Vite development server proxies \`/api\` and \`/predict\` to Flask at \`http://127.0.0.1:5001\`. When the frontend Origin differs from the Flask host, set \`MANNKIDHUN_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173\` in the Flask process before starting it. Create an account at \`/signup\`, then open the Assistant or mood check-in.
 
 ### Environment configuration
 
@@ -105,6 +105,7 @@ See [.env.example](.env.example) for the supported settings. The Flask applicati
 | --- | --- |
 | \`MANNKIDHUN_SECRET_KEY\` | Stable Flask session-signing secret. Set this in every deployed environment. |
 | \`MANNKIDHUN_COOKIE_SECURE\` | Set to \`1\` when the public site is served over HTTPS. |
+| \`MANNKIDHUN_ALLOWED_ORIGINS\` | Comma-separated additional browser origins. Set your Vite development origin (normally localhost:5173 or 127.0.0.1:5173) when it differs from Flask's host. |
 | \`MANNKIDHUN_DATA_DIR\` | Optional directory for the SQLite database and profile uploads. Defaults to \`./instance\`. |
 | \`AI_ASSISTANT_API_KEY\` | Optional key for an OpenAI-compatible intent provider. Leave unset to use local rule-based intent parsing. |
 | \`AI_ASSISTANT_API_URL\` | Optional HTTPS endpoint for the intent provider. |
@@ -173,6 +174,7 @@ Key implementation files:
 
 - Camera access requires a separate user action. Five temporary frames are sent for the expression check and are processed in memory; the expression endpoint does not save the frames to disk.
 - The model's class scores are **not calibrated probabilities**. Frame consistency is not model accuracy. The model has not been established as reliable on a labeled, subject-separated evaluation dataset.
+- An expression estimate must be explicitly confirmed before it can select the mood-based music suggestion; a manual choice always overrides it.
 - Manual mood selection remains available without camera access. Facial expressions should not be used to infer a person's actual feelings or for health, employment, educational, or other consequential decisions.
 - Music DNA is disabled until the listener opts in. Mood journal entries are manually written and private to the account.
 - Listening-history personalisation is used only when the listener enables it for a request.
@@ -206,9 +208,12 @@ See [Deployment and operations](docs/DEPLOYMENT.md) and [Database](docs/DATABASE
 - Voice features depend on the browser's speech APIs and may not be available in every browser.
 - Kannada, Urdu, Sanskrit, and other regional-language catalogue coverage needs verified additions; language recognition in the assistant does not mean that tracks are already available.
 - Password-reset and verification email delivery are not configured.
-- SQLite, process-local assistant rate limiting, and the Free Render filesystem are not suitable for a durable multi-worker production service.
+- Login and assistant rate limits are process-local, not distributed; the origin guard is defense in depth and is not a synchronizer-token CSRF implementation.
+- SQLite, process-local rate limiting, and the Free Render filesystem are not suitable for a durable multi-worker production service.
 
 ## Product and market research
+
+See [the 17-upgrade implementation audit](docs/UPGRADE_STATUS.md) for an item-by-item status, evidence, and remaining scope.
 
 See [Competitive analysis and differentiation](docs/COMPETITIVE_ANALYSIS.md) for a sourced review of adjacent products, an evidence-based positioning, and prioritized opportunities. The [Product roadmap](docs/PRODUCT_ROADMAP.md) distinguishes shipped capabilities from remaining work.
 
