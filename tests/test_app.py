@@ -752,6 +752,52 @@ class ApiRouteTests(unittest.TestCase):
         self.assertFalse(disabled.json["enabled"])
         self.assertFalse(client.get("/api/v1/users/me/music-dna").json["enabled"])
 
+    def test_music_dna_reset_clears_history_but_preserves_saved_songs_and_preferences(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "DNA Reset Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        with closing(mood_app._connect_database(mood_app.AUTH_DATABASE)) as connection:
+            song_id = connection.execute("SELECT id FROM songs ORDER BY id LIMIT 1").fetchone()[0]
+
+        self.assertEqual(
+            client.put("/api/v1/preferences", json={"preferred_genres": ["Pop"]}).status_code,
+            200,
+        )
+        self.assertEqual(
+            client.post(
+                "/api/v1/users/me/music-dna/consent",
+                json={"enabled": True},
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            client.post(
+                "/api/v1/users/me/listening-history",
+                json={"song_id": song_id, "event_type": "like"},
+            ).status_code,
+            201,
+        )
+        self.assertEqual(
+            client.post("/api/v1/users/me/saved-songs", json={"song_id": song_id}).status_code,
+            201,
+        )
+
+        reset = client.delete("/api/v1/users/me/music-dna")
+        self.assertEqual(reset.status_code, 200)
+        self.assertTrue(reset.json["reset"])
+        self.assertTrue(reset.json["saved_songs_preserved"])
+        self.assertTrue(reset.json["preferences_preserved"])
+        self.assertFalse(client.get("/api/v1/users/me/music-dna").json["enabled"])
+        self.assertEqual(client.get("/api/v1/users/me/listening-history").json["history"], [])
+        self.assertEqual(len(client.get("/api/v1/users/me/saved-songs").json["saved_songs"]), 1)
+        self.assertEqual(client.get("/api/v1/preferences").json["preferred_genres"], ["Pop"])
+
     def test_adaptive_session_saves_recommendation_queue(self):
         client = mood_app.app.test_client()
         email = f"{uuid.uuid4().hex}@example.com"

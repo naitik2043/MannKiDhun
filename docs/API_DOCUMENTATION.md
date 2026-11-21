@@ -30,7 +30,7 @@ Legacy `/api/auth/*` routes remain available for the current client.
 | GET/POST | `/api/v1/users/me/saved-songs` | List or save the current user's catalogue tracks. |
 | DELETE | `/api/v1/users/me/saved-songs/{song_id}` | Remove a saved track. |
 | GET/POST/DELETE | `/api/v1/users/me/listening-history` | Read, record, or clear the current user's activity. |
-| GET | `/api/v1/users/me/music-dna` | Read the private preference/activity profile when the user has opted in. |
+| GET/DELETE | `/api/v1/users/me/music-dna` | Read the private opted-in profile or reset feedback-derived profile/listening history while keeping saved songs/preferences. |
 | POST | `/api/v1/users/me/music-dna/consent` | Enable or disable Music DNA activity summaries. |
 | GET/POST | `/api/v1/users/me/mood-journal` | List recent private journal entries or add a manual mood note. |
 | DELETE | `/api/v1/users/me/mood-journal/{entry_id}` | Delete one of the current user's journal entries. |
@@ -99,7 +99,7 @@ Entries are account-scoped and can be listed with GET or deleted individually. J
 
 ### Personal Music DNA
 
-Music DNA is disabled by default. Send `POST /api/v1/users/me/music-dna/consent` with `{ "enabled": true }` to opt in, then read `GET /api/v1/users/me/music-dna`. Disabling consent hides the derived profile; the endpoint does not share it publicly.
+Music DNA is disabled by default. Send `POST /api/v1/users/me/music-dna/consent` with `{ "enabled": true }` to opt in, then read `GET /api/v1/users/me/music-dna`. Disabling consent hides the derived profile; the endpoint does not share it publicly. DELETE `/api/v1/users/me/music-dna` additionally deletes plays, likes, skips, completions, and recommendation feedback, disables Music DNA consent, and keeps saved songs plus declared preference lists.
 
 ### Playlist refinement and sharing
 

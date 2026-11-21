@@ -165,6 +165,27 @@ function DashboardPage({ user, theme, toggleTheme }) {
     }
   }
 
+  async function resetMusicDna() {
+    const confirmed = window.confirm(
+      "Reset Music DNA and listening history? This deletes your plays, likes, skips, and recommendation feedback. Saved songs and your declared preferences will be kept."
+    );
+    if (!confirmed) return;
+    setMusicDnaBusy(true);
+    setJournalError("");
+    try {
+      const response = await fetch("/api/v1/users/me/music-dna", { method: "DELETE" });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || "Could not reset Music DNA.");
+      setMusicDna({ enabled: false, message: "Music DNA has been reset." });
+      setHistory([]);
+      setJournalStatus("Music DNA and listening history were reset. Saved songs and declared preferences were kept.");
+    } catch (error) {
+      setJournalError(error.message || "Could not reset Music DNA.");
+    } finally {
+      setMusicDnaBusy(false);
+    }
+  }
+
   function renderDnaItems(title, items) {
     return (
       <div className="dashboard-dna-group">
@@ -232,9 +253,14 @@ function DashboardPage({ user, theme, toggleTheme }) {
                     <p>{musicDna.summary?.plays || 0} plays · {musicDna.summary?.likes || 0} likes · {musicDna.summary?.skips || 0} skips</p>
                   </div>
                 </div>
-                <button type="button" className="dashboard-text-link" onClick={toggleMusicDna} disabled={musicDnaBusy}>
-                  {musicDnaBusy ? "Updating…" : "Turn off Music DNA"}
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" className="dashboard-text-link" onClick={toggleMusicDna} disabled={musicDnaBusy}>
+                    {musicDnaBusy ? "Updating…" : "Turn off Music DNA"}
+                  </button>
+                  <button type="button" className="dashboard-text-link" onClick={resetMusicDna} disabled={musicDnaBusy}>
+                    Reset DNA & listening history
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="dashboard-empty">

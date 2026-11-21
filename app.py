@@ -1113,11 +1113,36 @@ def _save_user_preferences(user, payload, onboarding_completed=None):
     })
 
 
-@app.route("/api/v1/users/me/music-dna", methods=["GET"])
+@app.route("/api/v1/users/me/music-dna", methods=["GET", "DELETE"])
 def user_music_dna():
     user = get_authenticated_user()
     if user is None:
         return jsonify({"error": "Sign in to view your Music DNA."}), 401
+
+    if request.method == "DELETE":
+        with closing(_connect_database(AUTH_DATABASE)) as connection, connection:
+            connection.execute(
+                """
+                DELETE FROM user_song_interactions
+                WHERE user_id = ?
+                  AND interaction_type IN ('like', 'skip', 'listen', 'play', 'complete', 'save')
+                """,
+                (user["id"],),
+            )
+            connection.execute(
+                "DELETE FROM recommendation_events WHERE user_id = ?",
+                (user["id"],),
+            )
+            connection.execute(
+                "UPDATE user_preferences SET music_dna_enabled = 0, updated_at = ? WHERE user_id = ?",
+                (_sqlite_now(), user["id"]),
+            )
+        return jsonify({
+            "reset": True,
+            "music_dna_enabled": False,
+            "saved_songs_preserved": True,
+            "preferences_preserved": True,
+        })
 
     with closing(_connect_database(AUTH_DATABASE)) as connection:
         preference = connection.execute(
