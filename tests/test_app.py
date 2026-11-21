@@ -182,6 +182,7 @@ class ApiRouteTests(unittest.TestCase):
             "/dashboard",
             "/mood-check",
             "/profile",
+            "/playlists/42",
         ):
             with self.subTest(path=path):
                 response = client.get(path)

@@ -562,6 +562,13 @@ def index():
     return send_from_directory(FRONTEND_DIST, "index.html")
 
 
+@app.route("/playlists/<int:playlist_id>")
+def shared_playlist_page(playlist_id):
+    if not (FRONTEND_DIST / "index.html").is_file():
+        abort(503, description="Build the React app first with `npm run build`.")
+    return send_from_directory(FRONTEND_DIST, "index.html")
+
+
 @app.route("/mannkidhun.svg")
 def brand_icon():
     if not (FRONTEND_DIST / "mannkidhun.svg").is_file():
