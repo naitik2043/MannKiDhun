@@ -150,6 +150,7 @@ class ApiRouteTests(unittest.TestCase):
         self.auth_database_patch.start()
         self.instance_directory_patch.start()
         mood_app.initialize_auth_database()
+        mood_app.create_music_catalogue(mood_app.AUTH_DATABASE)
 
     def tearDown(self):
         self.auth_database_patch.stop()

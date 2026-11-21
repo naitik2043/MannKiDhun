@@ -31,6 +31,11 @@ from prediction_aggregation import (
 )
 from recommendation_engine import (
     add_song_to_playlist,
+    accept_playlist_invite,
+    can_edit_playlist,
+    create_playlist_invite,
+    get_playlist_collaborators,
+    revoke_playlist_invites,
     clear_listening_history,
     clear_playback_state,
     create_music_catalogue,
@@ -1750,6 +1755,78 @@ def playlist_detail(playlist_id):
     if updated is None:
         return jsonify({"error": "Playlist not found."}), 404
     return jsonify({"playlist": updated})
+
+
+@app.route("/api/v1/playlists/<int:playlist_id>/invites", methods=["POST"])
+def playlist_invite_create(playlist_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to invite collaborators."}), 401
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "Provide invitation options."}), 400
+    role = payload.get("role", "editor")
+    if role not in {"viewer", "editor"}:
+        return jsonify({"error": "Invite role must be viewer or editor."}), 400
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        created = create_playlist_invite(
+            str(AUTH_DATABASE), user["id"], playlist_id, token_hash, role=role, expires_at=expires_at
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    if not created:
+        return jsonify({"error": "Only the playlist owner can invite collaborators."}), 403
+    invite_url = request.host_url.rstrip("/") + (
+        f"/assistant?invite_playlist={playlist_id}&invite_token={token}"
+    )
+    return jsonify({"invite_url": invite_url, "role": role, "expires_at": expires_at}), 201
+
+
+@app.route("/api/v1/playlists/<int:playlist_id>/invites/accept", methods=["POST"])
+def playlist_invite_accept(playlist_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to accept a playlist invitation."}), 401
+    payload = request.get_json(silent=True)
+    token = payload.get("token") if isinstance(payload, dict) else None
+    if not isinstance(token, str) or not 20 <= len(token) <= 200:
+        return jsonify({"error": "Provide a valid invitation token."}), 400
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    playlist = accept_playlist_invite(
+        str(AUTH_DATABASE), user["id"], playlist_id, token_hash, _sqlite_now()
+    )
+    if playlist is None:
+        return jsonify({"error": "This invitation is invalid, expired, or revoked."}), 404
+    return jsonify({"playlist": playlist})
+
+
+@app.route("/api/v1/playlists/<int:playlist_id>/invites", methods=["DELETE"])
+def playlist_invites_revoke(playlist_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to revoke invitations."}), 401
+    revoked = revoke_playlist_invites(
+        str(AUTH_DATABASE), user["id"], playlist_id, _sqlite_now()
+    )
+    if revoked == 0:
+        return jsonify({"error": "No active invitations found for this playlist."}), 404
+    return jsonify({"revoked": revoked})
+
+
+@app.route("/api/v1/playlists/<int:playlist_id>/collaborators", methods=["GET"])
+def playlist_collaborators(playlist_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to view collaborators."}), 401
+    collaborators = get_playlist_collaborators(
+        str(AUTH_DATABASE), user["id"], playlist_id
+    )
+    if collaborators is None:
+        return jsonify({"error": "Only the playlist owner can view the collaborator list."}), 403
+    return jsonify({"collaborators": collaborators})
 
 
 @app.route("/api/v1/playlists/<int:playlist_id>/tracks", methods=["POST"])

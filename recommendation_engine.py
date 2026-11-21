@@ -630,6 +630,43 @@ def create_music_catalogue(database_path):
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS playlist_collaborators (
+                playlist_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role TEXT NOT NULL DEFAULT 'editor',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(playlist_id, user_id),
+                FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS playlist_invites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                playlist_id INTEGER NOT NULL,
+                created_by INTEGER NOT NULL,
+                token_hash TEXT NOT NULL UNIQUE,
+                role TEXT NOT NULL DEFAULT 'editor',
+                expires_at TEXT NOT NULL,
+                revoked_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_playlist_collaborators_user "
+            "ON playlist_collaborators(user_id, playlist_id)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_playlist_invites_playlist "
+            "ON playlist_invites(playlist_id, expires_at)"
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS saved_songs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
@@ -849,6 +886,116 @@ def _ensure_table_column(connection, table_name, column_name, column_sql):
         connection.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_sql}")
 
 
+def create_playlist_invite(database_path, owner_id, playlist_id, token_hash, role="editor", expires_at=None):
+    if role not in {"viewer", "editor"}:
+        raise ValueError("Invite role must be viewer or editor.")
+    if not token_hash or not expires_at:
+        raise ValueError("A secure token hash and expiry are required.")
+    with closing(_connect_database(database_path)) as connection, connection:
+        owner = connection.execute(
+            "SELECT 1 FROM playlists WHERE id = ? AND user_id = ?",
+            (playlist_id, owner_id),
+        ).fetchone()
+        if owner is None:
+            return False
+        connection.execute(
+            """
+            INSERT INTO playlist_invites (playlist_id, created_by, token_hash, role, expires_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (playlist_id, owner_id, token_hash, role, expires_at),
+        )
+    return True
+
+
+def accept_playlist_invite(database_path, user_id, playlist_id, token_hash, now):
+    if user_id is None or not token_hash:
+        return None
+    with closing(_connect_database(database_path)) as connection, connection:
+        invite = connection.execute(
+            """
+            SELECT role, expires_at, revoked_at
+            FROM playlist_invites
+            WHERE playlist_id = ? AND token_hash = ?
+            """,
+            (playlist_id, token_hash),
+        ).fetchone()
+        if invite is None or invite[2] is not None or invite[1] <= now:
+            return None
+        owner = connection.execute(
+            "SELECT user_id FROM playlists WHERE id = ?",
+            (playlist_id,),
+        ).fetchone()
+        if owner is None:
+            return None
+        if owner[0] != user_id:
+            connection.execute(
+                """
+                INSERT INTO playlist_collaborators (playlist_id, user_id, role, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(playlist_id, user_id) DO UPDATE SET role = excluded.role
+                """,
+                (playlist_id, user_id, invite[0], now),
+            )
+    return get_playlist_details(database_path, playlist_id, user_id=user_id)
+
+
+def revoke_playlist_invites(database_path, owner_id, playlist_id, now):
+    with closing(_connect_database(database_path)) as connection, connection:
+        cursor = connection.execute(
+            """
+            UPDATE playlist_invites
+            SET revoked_at = ?
+            WHERE playlist_id = ?
+              AND created_by = ?
+              AND revoked_at IS NULL
+            """,
+            (now, playlist_id, owner_id),
+        )
+    return cursor.rowcount
+
+
+def get_playlist_collaborators(database_path, owner_id, playlist_id):
+    with closing(_connect_database(database_path)) as connection:
+        owner = connection.execute(
+            "SELECT 1 FROM playlists WHERE id = ? AND user_id = ?",
+            (playlist_id, owner_id),
+        ).fetchone()
+        if owner is None:
+            return None
+        rows = connection.execute(
+            """
+            SELECT pc.user_id, u.name, pc.role, pc.created_at
+            FROM playlist_collaborators pc
+            JOIN users u ON u.id = pc.user_id
+            WHERE pc.playlist_id = ?
+            ORDER BY pc.created_at, pc.user_id
+            """,
+            (playlist_id,),
+        ).fetchall()
+    return [
+        {"user_id": row[0], "name": row[1], "role": row[2], "joined_at": row[3]}
+        for row in rows
+    ]
+
+
+def can_edit_playlist(database_path, user_id, playlist_id):
+    if user_id is None:
+        return False
+    with closing(_connect_database(database_path)) as connection:
+        row = connection.execute(
+            """
+            SELECT 1 FROM playlists p
+            LEFT JOIN playlist_collaborators pc
+                ON pc.playlist_id = p.id AND pc.user_id = ?
+            WHERE p.id = ?
+              AND (p.user_id = ? OR (pc.user_id = ? AND pc.role = 'editor'))
+            """,
+            (user_id, playlist_id, user_id, user_id),
+        ).fetchone()
+    return row is not None
+
+
 def create_playlist(database_path, user_id, name, description="", artwork_url="", is_public=False):
     if user_id is None:
         return None
@@ -882,18 +1029,24 @@ def create_playlist(database_path, user_id, name, description="", artwork_url=""
 
 
 def get_user_playlists(database_path, user_id):
+    if user_id is None:
+        return []
     with closing(_connect_database(database_path)) as connection:
         rows = connection.execute(
             """
             SELECT p.id, p.user_id, p.name, p.description, p.artwork_url, p.is_public,
-                   COUNT(pt.song_id) AS track_count
+                   COUNT(DISTINCT pt.song_id) AS track_count,
+                   CASE WHEN p.user_id = ? THEN 'owner' ELSE pc.role END AS role,
+                   CASE WHEN p.user_id = ? THEN 1 ELSE 0 END AS is_owner
             FROM playlists p
             LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
-            WHERE p.user_id = ?
+            LEFT JOIN playlist_collaborators pc
+                ON pc.playlist_id = p.id AND pc.user_id = ?
+            WHERE p.user_id = ? OR pc.user_id = ?
             GROUP BY p.id
             ORDER BY p.updated_at DESC, p.id DESC
             """,
-            (user_id,),
+            (user_id, user_id, user_id, user_id, user_id),
         ).fetchall()
     return [
         {
@@ -904,20 +1057,28 @@ def get_user_playlists(database_path, user_id):
             "artwork_url": row[4],
             "is_public": bool(row[5]),
             "track_count": int(row[6] or 0),
+            "role": row[7] or "owner",
+            "is_owner": bool(row[8]),
         }
         for row in rows
     ]
 
-
 def get_playlist_details(database_path, playlist_id, user_id=None):
     with closing(_connect_database(database_path)) as connection:
         row = connection.execute(
-            "SELECT id, user_id, name, description, artwork_url, is_public FROM playlists WHERE id = ?",
-            (playlist_id,),
+            """
+            SELECT p.id, p.user_id, p.name, p.description, p.artwork_url, p.is_public,
+                   CASE WHEN p.user_id = ? THEN 'owner' ELSE pc.role END AS role,
+                   CASE WHEN p.user_id = ? THEN 1 ELSE 0 END AS is_owner
+            FROM playlists p
+            LEFT JOIN playlist_collaborators pc
+                ON pc.playlist_id = p.id AND pc.user_id = ?
+            WHERE p.id = ?
+              AND (? IS NULL OR p.user_id = ? OR pc.user_id = ?)
+            """,
+            (user_id, user_id, user_id, playlist_id, user_id, user_id, user_id),
         ).fetchone()
         if row is None:
-            return None
-        if user_id is not None and row[1] != user_id:
             return None
         tracks = connection.execute(
             """
@@ -938,6 +1099,8 @@ def get_playlist_details(database_path, playlist_id, user_id=None):
             "description": row[3],
             "artwork_url": row[4],
             "is_public": bool(row[5]),
+            "role": row[6] or "owner",
+            "is_owner": bool(row[7]),
             "tracks": [
                 {
                     "id": track[0],
@@ -953,7 +1116,6 @@ def get_playlist_details(database_path, playlist_id, user_id=None):
                 for track in tracks
             ],
         }
-
 
 def update_playlist(database_path, user_id, playlist_id, updates):
     if user_id is None:
@@ -1007,8 +1169,14 @@ def delete_playlist(database_path, user_id, playlist_id):
 def add_song_to_playlist(database_path, user_id, playlist_id, song_id):
     with closing(_connect_database(database_path)) as connection, connection:
         playlist = connection.execute(
-            "SELECT id FROM playlists WHERE user_id = ? AND id = ?",
-            (user_id, playlist_id),
+            """
+            SELECT p.id FROM playlists p
+            LEFT JOIN playlist_collaborators pc
+                ON pc.playlist_id = p.id AND pc.user_id = ?
+            WHERE p.id = ?
+              AND (p.user_id = ? OR (pc.user_id = ? AND pc.role = 'editor'))
+            """,
+            (user_id, playlist_id, user_id, user_id),
         ).fetchone()
         if playlist is None:
             return None
@@ -1038,8 +1206,18 @@ def add_song_to_playlist(database_path, user_id, playlist_id, song_id):
 def remove_song_from_playlist(database_path, user_id, playlist_id, song_id):
     with closing(_connect_database(database_path)) as connection, connection:
         cursor = connection.execute(
-            "DELETE FROM playlist_tracks WHERE playlist_id = (SELECT id FROM playlists WHERE user_id = ? AND id = ?) AND song_id = ?",
-            (user_id, playlist_id, song_id),
+            """
+            DELETE FROM playlist_tracks
+            WHERE playlist_id = ? AND song_id = ?
+              AND EXISTS (
+                  SELECT 1 FROM playlists p
+                  LEFT JOIN playlist_collaborators pc
+                    ON pc.playlist_id = p.id AND pc.user_id = ?
+                  WHERE p.id = playlist_tracks.playlist_id
+                    AND (p.user_id = ? OR (pc.user_id = ? AND pc.role = 'editor'))
+              )
+            """,
+            (playlist_id, song_id, user_id, user_id, user_id),
         )
         if cursor.rowcount > 0:
             connection.execute(
@@ -1054,8 +1232,14 @@ def reorder_playlist_tracks(database_path, user_id, playlist_id, ordered_song_id
         return None
     with closing(_connect_database(database_path)) as connection, connection:
         playlist = connection.execute(
-            "SELECT id FROM playlists WHERE user_id = ? AND id = ?",
-            (user_id, playlist_id),
+            """
+            SELECT p.id FROM playlists p
+            LEFT JOIN playlist_collaborators pc
+                ON pc.playlist_id = p.id AND pc.user_id = ?
+            WHERE p.id = ?
+              AND (p.user_id = ? OR (pc.user_id = ? AND pc.role = 'editor'))
+            """,
+            (user_id, playlist_id, user_id, user_id),
         ).fetchone()
         if playlist is None:
             return None
