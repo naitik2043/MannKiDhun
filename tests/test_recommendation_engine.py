@@ -94,23 +94,28 @@ class RecommendationEngineTests(unittest.TestCase):
         self.assertIn("skip feedback", recommendations[1]["explanation"].lower())
 
     def test_latest_like_or_skip_feedback_replaces_the_opposite_signal(self):
-        connection = sqlite3.connect(":memory:")
+        fd, database_path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
         try:
-            connection.execute(
-                "CREATE TABLE user_song_interactions (user_id INTEGER, song_id INTEGER, interaction_type TEXT, source TEXT, position_ms INTEGER, duration_ms INTEGER, created_at TEXT, UNIQUE(user_id, song_id, interaction_type))"
-            )
-            with tempfile.NamedTemporaryFile(suffix=".sqlite3") as database:
-                # The public recorder opens its own database connection.
-                path = database.name
-                record_user_interaction(path, 9, 55, "like")
-                record_user_interaction(path, 9, 55, "skip")
-                with sqlite3.connect(path) as stored:
-                    rows = stored.execute(
-                        "SELECT interaction_type FROM user_song_interactions WHERE user_id = 9 AND song_id = 55"
-                    ).fetchall()
-                self.assertEqual(rows, [("skip",)])
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    "CREATE TABLE user_song_interactions (user_id INTEGER, song_id INTEGER, interaction_type TEXT, source TEXT, position_ms INTEGER, duration_ms INTEGER, created_at TEXT, UNIQUE(user_id, song_id, interaction_type))"
+                )
+            record_user_interaction(database_path, 9, 55, "like")
+            record_user_interaction(database_path, 9, 55, "skip")
+            with sqlite3.connect(database_path) as connection:
+                rows = connection.execute(
+                    "SELECT interaction_type FROM user_song_interactions WHERE user_id = 9 AND song_id = 55"
+                ).fetchall()
+            self.assertEqual(rows, [("skip",)])
+            record_user_interaction(database_path, 9, 55, "like")
+            with sqlite3.connect(database_path) as connection:
+                rows = connection.execute(
+                    "SELECT interaction_type FROM user_song_interactions WHERE user_id = 9 AND song_id = 55"
+                ).fetchall()
+            self.assertEqual(rows, [("like",)])
         finally:
-            connection.close()
+            os.unlink(database_path)
 
     def test_interaction_history_uses_positive_and_negative_feedback_weights(self):
         connection = sqlite3.connect(":memory:")
