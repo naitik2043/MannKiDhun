@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PlayerProvider, usePlayer } from "./PlayerContext.jsx";
 
@@ -110,5 +110,38 @@ describe("PlayerProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Play second song" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Second song"));
     expect(screen.getByRole("status").textContent).toContain("2 queued");
+  });
+
+  it("retries loading the YouTube API after a script failure", async () => {
+    delete window.YT;
+    const firstRender = render(<PlayerProvider><PlayerProbe /></PlayerProvider>);
+    const firstScript = await waitFor(() =>
+      document.querySelector('script[data-mannkidhun-youtube-api="true"]'),
+    );
+
+    fireEvent.error(firstScript);
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("could not load");
+    });
+    expect(firstScript.isConnected).toBe(false);
+    firstRender.unmount();
+
+    render(<PlayerProvider><PlayerProbe /></PlayerProvider>);
+    const retryScript = await waitFor(() =>
+      document.querySelector('script[data-mannkidhun-youtube-api="true"]'),
+    );
+    expect(retryScript).not.toBe(firstScript);
+
+    window.YT = {
+      Player: MockYouTubePlayer,
+      PlayerState: { PLAYING: 1, PAUSED: 2, CUED: 5, ENDED: 0 },
+    };
+    await act(async () => {
+      window.onYouTubeIframeAPIReady();
+    });
+
+    await waitFor(() => {
+      expect(window.__mockYouTubePlayer).toBeDefined();
+    });
   });
 });

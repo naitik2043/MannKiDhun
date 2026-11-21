@@ -77,26 +77,73 @@ function readSavedState() {
 function loadYouTubeApi() {
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (youtubeApiPromise) return youtubeApiPromise;
-  youtubeApiPromise = new Promise((resolve, reject) => {
+
+  const promise = new Promise((resolve, reject) => {
+    let settled = false;
+    let script;
+    let timeoutId;
     const previousCallback = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      if (typeof previousCallback === "function") previousCallback();
-      if (window.YT?.Player) resolve(window.YT);
-      else reject(new Error("The music player could not be initialized."));
+
+    const cleanup = (removeFailedScript = false) => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      script?.removeEventListener("error", handleScriptError);
+      if (window.onYouTubeIframeAPIReady === handleReady) {
+        window.onYouTubeIframeAPIReady = previousCallback;
+      }
+      if (removeFailedScript && script?.dataset.mannkidhunYoutubeApi === "true") {
+        script.remove();
+      }
     };
-    let script = document.querySelector('script[data-mannkidhun-youtube-api="true"]');
+
+    const fail = (message) => {
+      if (settled) return;
+      settled = true;
+      cleanup(true);
+      if (youtubeApiPromise === promise) youtubeApiPromise = null;
+      reject(new Error(message));
+    };
+
+    const handleScriptError = () => {
+      fail("The music player could not load. Check your connection and try again.");
+    };
+
+    const handleReady = () => {
+      if (typeof previousCallback === "function") {
+        try {
+          previousCallback();
+        } catch (error) {
+          console.error("A previous YouTube API callback failed:", error);
+        }
+      }
+      if (!window.YT?.Player) {
+        fail("The music player could not be initialized.");
+        return;
+      }
+      if (settled) return;
+      settled = true;
+      cleanup(false);
+      resolve(window.YT);
+    };
+
+    window.onYouTubeIframeAPIReady = handleReady;
+    script = document.querySelector('script[data-mannkidhun-youtube-api="true"]');
     if (!script) {
       script = document.createElement("script");
       script.src = "https://www.youtube.com/iframe_api";
       script.async = true;
       script.dataset.mannkidhunYoutubeApi = "true";
-      script.onerror = () => reject(new Error("The music player could not load. Check your connection."));
-      document.head.appendChild(script);
     }
-  });
-  return youtubeApiPromise;
-}
+    script.addEventListener("error", handleScriptError, { once: true });
+    timeoutId = window.setTimeout(() => {
+      fail("The music player took too long to load. Check your connection and try again.");
+    }, 15000);
 
+    if (!script.isConnected) document.head.appendChild(script);
+  });
+
+  youtubeApiPromise = promise;
+  return promise;
+}
 function formatTime(milliseconds) {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -191,7 +238,10 @@ export function PlayerProvider({ children }) {
           },
           events: {
             onReady: () => {
-              if (!disposed) setIsReady(true);
+              if (!disposed) {
+                setIsReady(true);
+                setError("");
+              }
             },
             onStateChange: (event) => {
               if (event.data === YT.PlayerState.PLAYING) {
