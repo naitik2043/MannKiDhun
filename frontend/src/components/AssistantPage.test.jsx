@@ -17,6 +17,12 @@ function jsonResponse(body, ok = true) {
 describe("AssistantPage", () => {
   it("shows catalogue recommendations, saves a song, and clears chat", async () => {
     const fetchMock = vi.fn(async (url, options = {}) => {
+      if (url === "/api/v1/playlists/3/invites" && options.method === "POST") {
+        return jsonResponse({
+          invite_url: "http://localhost/assistant?invite_playlist=3&invite_token=long-secure-token",
+          expires_at: "2026-11-29 12:00:00",
+        });
+      }
       if (url === "/api/v1/playlists" && options.method === "POST") {
         return jsonResponse({ playlist: { id: 3, name: "Evening Mix" } });
       }
@@ -73,6 +79,15 @@ describe("AssistantPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("created"));
+    fireEvent.click(screen.getByRole("button", { name: "Invite editor" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("invite_token=long-secure-token"));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/playlists/3/invites",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ role: "editor" }),
+      }),
+    );
 
     fireEvent.change(screen.getByLabelText("Your music request"), {
       target: { value: "peaceful music" },

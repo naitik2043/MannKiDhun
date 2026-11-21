@@ -40,15 +40,43 @@ function AssistantPage({ user, theme, toggleTheme }) {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/v1/playlists")
-      .then(async (response) => {
+
+    async function loadPlaylists() {
+      const params = new URLSearchParams(window.location.search);
+      const invitePlaylist = params.get("invite_playlist");
+      const inviteToken = params.get("invite_token");
+
+      if (invitePlaylist && inviteToken && /^\\d+$/.test(invitePlaylist)) {
+        try {
+          const inviteResponse = await fetch(`/api/v1/playlists/${invitePlaylist}/invites/accept`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: inviteToken }),
+          });
+          const inviteResult = await inviteResponse.json().catch(() => null);
+          if (!inviteResponse.ok) {
+            throw new Error(inviteResult?.error || "This playlist invitation could not be accepted.");
+          }
+          if (active) {
+            setActionStatus(`You joined ${inviteResult.playlist.name} as a ${inviteResult.playlist.role}.`);
+          }
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (inviteError) {
+          if (active) setError(inviteError.message || "This playlist invitation could not be accepted.");
+        }
+      }
+
+      try {
+        const response = await fetch("/api/v1/playlists");
         const result = await response.json().catch(() => null);
         if (!response.ok) throw new Error(result?.error || "Could not load playlists.");
         if (active) setPlaylists(result.playlists || []);
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.message);
-      });
+      } catch (requestError) {
+        if (active) setError(requestError.message || "Could not load playlists.");
+      }
+    }
+
+    loadPlaylists();
     return () => {
       active = false;
     };
@@ -155,6 +183,26 @@ function AssistantPage({ user, theme, toggleTheme }) {
           ? `Added ${result.added_count} track(s) to ${result.playlist.name}.`
           : "No new catalogue tracks matched that instruction. Try a mood, language, genre, or artist.",
       );
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function createCollaboratorInvite(playlist) {
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${playlist.id}/invites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "editor" }),
+      });
+      try {
+        await navigator.clipboard.writeText(result.invite_url);
+        setActionStatus("Editor invitation link copied. It expires on " + result.expires_at + ".");
+      } catch {
+        setActionStatus("Share this editor invitation link: " + result.invite_url);
+      }
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -309,7 +357,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, is_public: isPublicPlaylist }),
       });
-      setPlaylists((current) => [...current, result.playlist]);
+      setPlaylists((current) => [...current, { ...result.playlist, role: "owner", is_owner: true }]);
       setNewPlaylistName("");
       setIsPublicPlaylist(false);
       setActionStatus(`${result.playlist.name} was created.`);
@@ -460,10 +508,22 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 <h2>Your playlists</h2>
                 {playlists.map((playlist) => (
                   <div className="assistant-playlist-row" key={playlist.id}>
-                    <span>{playlist.name} · {playlist.track_count || 0} tracks</span>
-                    <button type="button" onClick={() => togglePlaylistSharing(playlist)}>
-                      {playlist.is_public ? "Copy public link / Make private" : "Make public"}
-                    </button>
+                    <span>
+                      {playlist.name} · {playlist.track_count || 0} tracks
+                      {playlist.is_owner ? " · Owner" : " · " + (playlist.role || "Collaborator")}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {playlist.is_owner && (
+                        <>
+                          <button type="button" onClick={() => createCollaboratorInvite(playlist)}>
+                            Invite editor
+                          </button>
+                          <button type="button" onClick={() => togglePlaylistSharing(playlist)}>
+                            {playlist.is_public ? "Copy public link / Make private" : "Make public"}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
                 <form className="assistant-refine-playlist" onSubmit={refinePlaylist}>
