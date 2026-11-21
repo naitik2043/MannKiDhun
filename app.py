@@ -1277,7 +1277,25 @@ def mood_journal():
                 "WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 30",
                 (user["id"],),
             ).fetchall()
+            mood_summary_rows = connection.execute(
+                """
+                SELECT mood, COUNT(*) AS total
+                FROM (
+                    SELECT mood FROM mood_journal_entries
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 30
+                )
+                GROUP BY mood
+                ORDER BY total DESC, mood
+                """,
+                (user["id"],),
+            ).fetchall()
         return jsonify({
+            "mood_summary": [
+                {"mood": row[0], "entries": int(row[1])}
+                for row in mood_summary_rows
+            ],
             "entries": [
                 {"id": row[0], "mood": row[1], "note": row[2], "created_at": row[3]}
                 for row in rows

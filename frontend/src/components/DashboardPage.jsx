@@ -30,6 +30,7 @@ function DashboardPage({ user, theme, toggleTheme }) {
   const [historyError, setHistoryError] = useState("");
   const [playlistsError, setPlaylistsError] = useState("");
   const [journalEntries, setJournalEntries] = useState([]);
+  const [journalInsights, setJournalInsights] = useState([]);
   const [journalMood, setJournalMood] = useState("neutral");
   const [journalNote, setJournalNote] = useState("");
   const [journalLoading, setJournalLoading] = useState(true);
@@ -73,7 +74,10 @@ function DashboardPage({ user, theme, toggleTheme }) {
         const response = await fetch("/api/v1/users/me/mood-journal");
         const result = await response.json().catch(() => null);
         if (!response.ok) throw new Error(result?.error || "Could not load your mood journal.");
-        if (active) setJournalEntries(Array.isArray(result?.entries) ? result.entries : []);
+        if (active) {
+          setJournalEntries(Array.isArray(result?.entries) ? result.entries : []);
+          setJournalInsights(Array.isArray(result?.mood_summary) ? result.mood_summary : []);
+        }
       } catch (error) {
         if (active) setJournalError(error.message || "Could not load your mood journal.");
       } finally {
@@ -283,6 +287,18 @@ function DashboardPage({ user, theme, toggleTheme }) {
             </form>
             {journalError && <p className="assistant-error" role="alert">{journalError}</p>}
             {journalStatus && <p className="assistant-status" role="status">{journalStatus}</p>}
+            {journalInsights.length > 0 && (
+              <div className="dashboard-empty grid gap-2">
+                <h3>Recent mood patterns · your last 30 entries</h3>
+                <div className="flex flex-wrap gap-2">
+                  {journalInsights.map((item) => (
+                    <span className="dashboard-dna-chip" key={item.mood}>
+                      {item.mood} · {item.entries}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {journalLoading ? (
               <p role="status">Loading your journal…</p>
             ) : journalEntries.length ? (

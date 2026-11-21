@@ -697,10 +697,12 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(created.status_code, 201)
         entry_id = created.json["entry"]["id"]
         self.assertEqual(created.json["entry"]["mood"], "relaxed")
+        journal = client.get("/api/v1/users/me/mood-journal")
         self.assertEqual(
-            client.get("/api/v1/users/me/mood-journal").json["entries"][0]["note"],
+            journal.json["entries"][0]["note"],
             "A quiet evening with music.",
         )
+        self.assertEqual(journal.json["mood_summary"][0], {"mood": "relaxed", "entries": 1})
 
         second_client = mood_app.app.test_client()
         second_client.post(
