@@ -583,6 +583,16 @@ def record_user_interaction(database_path, user_id, song_id, interaction_type, s
     position_ms = int(position_ms or 0)
     duration_ms = int(duration_ms or 0)
     with closing(_connect_database(database_path)) as connection, connection:
+        if interaction_type == "like":
+            connection.execute(
+                "DELETE FROM user_song_interactions WHERE user_id = ? AND song_id = ? AND interaction_type = 'skip'",
+                (user_id, song_id),
+            )
+        elif interaction_type == "skip":
+            connection.execute(
+                "DELETE FROM user_song_interactions WHERE user_id = ? AND song_id = ? AND interaction_type = 'like'",
+                (user_id, song_id),
+            )
         connection.execute(
             """
             INSERT OR IGNORE INTO user_song_interactions (user_id, song_id, interaction_type, source, position_ms, duration_ms, created_at)

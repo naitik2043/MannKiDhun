@@ -3,7 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from recommendation_engine import DEFAULT_SONGS, _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue
+from recommendation_engine import DEFAULT_SONGS, _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue, record_user_interaction
 
 
 class RecommendationEngineTests(unittest.TestCase):
@@ -92,6 +92,25 @@ class RecommendationEngineTests(unittest.TestCase):
 
         self.assertEqual(recommendations[0]["id"], 2)
         self.assertIn("skip feedback", recommendations[1]["explanation"].lower())
+
+    def test_latest_like_or_skip_feedback_replaces_the_opposite_signal(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute(
+                "CREATE TABLE user_song_interactions (user_id INTEGER, song_id INTEGER, interaction_type TEXT, source TEXT, position_ms INTEGER, duration_ms INTEGER, created_at TEXT, UNIQUE(user_id, song_id, interaction_type))"
+            )
+            with tempfile.NamedTemporaryFile(suffix=".sqlite3") as database:
+                # The public recorder opens its own database connection.
+                path = database.name
+                record_user_interaction(path, 9, 55, "like")
+                record_user_interaction(path, 9, 55, "skip")
+                with sqlite3.connect(path) as stored:
+                    rows = stored.execute(
+                        "SELECT interaction_type FROM user_song_interactions WHERE user_id = 9 AND song_id = 55"
+                    ).fetchall()
+                self.assertEqual(rows, [("skip",)])
+        finally:
+            connection.close()
 
     def test_interaction_history_uses_positive_and_negative_feedback_weights(self):
         connection = sqlite3.connect(":memory:")
