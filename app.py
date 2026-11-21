@@ -1178,6 +1178,36 @@ def user_music_dna():
             ORDER BY score DESC, interactions DESC LIMIT 5
             """
         )
+        top_tags = top_values(
+            """
+            SELECT st.tag,
+                   SUM(CASE WHEN usi.interaction_type IN ('like','save','complete') THEN 2.0
+                            WHEN usi.interaction_type IN ('play','listen') THEN 1.0
+                            WHEN usi.interaction_type = 'skip' THEN -1.0 ELSE 0.0 END) AS score,
+                   COUNT(*) AS interactions
+            FROM user_song_interactions usi
+            JOIN song_tags st ON st.song_id = usi.song_id
+            WHERE usi.user_id = ? AND st.tag NOT LIKE 'vibe:%'
+              AND usi.interaction_type IN ('like','save','complete','play','listen','skip')
+            GROUP BY st.tag HAVING score > 0
+            ORDER BY score DESC, interactions DESC LIMIT 6
+            """
+        )
+        top_vibes = top_values(
+            """
+            SELECT SUBSTR(st.tag, 6) AS vibe,
+                   SUM(CASE WHEN usi.interaction_type IN ('like','save','complete') THEN 2.0
+                            WHEN usi.interaction_type IN ('play','listen') THEN 1.0
+                            WHEN usi.interaction_type = 'skip' THEN -1.0 ELSE 0.0 END) AS score,
+                   COUNT(*) AS interactions
+            FROM user_song_interactions usi
+            JOIN song_tags st ON st.song_id = usi.song_id
+            WHERE usi.user_id = ? AND st.tag LIKE 'vibe:%'
+              AND usi.interaction_type IN ('like','save','complete','play','listen','skip')
+            GROUP BY st.tag HAVING score > 0
+            ORDER BY score DESC, interactions DESC LIMIT 5
+            """
+        )
         summary = connection.execute(
             """
             SELECT
@@ -1195,6 +1225,8 @@ def user_music_dna():
         "top_languages": top_languages,
         "top_genres": top_genres,
         "top_artists": top_artists,
+        "top_tags": top_tags,
+        "top_vibes": top_vibes,
         "summary": {
             "plays": int(summary[0] or 0),
             "likes": int(summary[1] or 0),

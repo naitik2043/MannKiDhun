@@ -742,6 +742,8 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(dna.status_code, 200)
         self.assertTrue(dna.json["enabled"])
         self.assertIn("top_languages", dna.json)
+        self.assertIn("top_tags", dna.json)
+        self.assertIn("top_vibes", dna.json)
         self.assertIn("summary", dna.json)
 
         disabled = client.post("/api/v1/users/me/music-dna/consent", json={"enabled": False})

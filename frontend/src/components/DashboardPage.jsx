@@ -221,6 +221,8 @@ function DashboardPage({ user, theme, toggleTheme }) {
                   {renderDnaItems("Top languages", musicDna.top_languages)}
                   {renderDnaItems("Top genres", musicDna.top_genres)}
                   {renderDnaItems("Favourite artists", musicDna.top_artists)}
+                  {renderDnaItems("Favourite listening styles", musicDna.top_tags)}
+                  {renderDnaItems("Vibes you return to", musicDna.top_vibes)}
                   <div className="dashboard-dna-group">
                     <h3>Listening signals</h3>
                     <p>{musicDna.summary?.plays || 0} plays · {musicDna.summary?.likes || 0} likes · {musicDna.summary?.skips || 0} skips</p>
