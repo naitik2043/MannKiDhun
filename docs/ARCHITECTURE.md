@@ -22,6 +22,16 @@ In development, Vite proxies `/api` and `/predict` to Flask. In the current sing
 4. The recommendation engine ranks existing catalogue records and applies explicit artist, language, and genre filters. If exact filters yield no tracks, the assistant explains this and offers available catalogue alternatives.
 5. The client keeps messages in page memory. It does not persist conversations.
 
+## Library and feedback flow
+
+1. The dashboard loads the authenticated user's recent interaction history and playlist summaries from separate API endpoints.
+2. Starting a catalogue track from the assistant records a `play` interaction with the source set to `assistant`; a history-write failure does not block playback.
+3. A listener can submit `like` or `skip` feedback from a recommendation card. The recommendation engine converts interaction types into signed relevance scores, so skip feedback lowers a track's history contribution rather than reinforcing it.
+4. The assistant displays the recommendation engine's existing explanation text to make the selection easier to understand.
+5. The history table is account-scoped. It does not store camera frames or assistant conversation transcripts.
+
+
+
 The assistant provider does not generate track names or playback URLs. Only catalogue records are returned. Rate limiting is process-local (12 requests per authenticated account per minute), so it is not shared across multiple WSGI workers or hosts.
 
 ## Existing capabilities and limits

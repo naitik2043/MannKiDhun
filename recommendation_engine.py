@@ -283,7 +283,7 @@ def build_hybrid_recommendations(
 
         artist_preference = 1.0 if song_artist and song_artist in favourite_artists else 0.0
         historical_relevance = float(interaction_history.get(song_id, 0.0) or interaction_history.get(str(song_id), 0.0) or 0.0)
-        behavioural_relevance = min(historical_relevance / 3.0, 1.0)
+        behavioural_relevance = max(-1.0, min(historical_relevance / 3.0, 1.0))
 
         score = (
             RECOMMENDATION_WEIGHTS["preference_match"] * preference_match
@@ -302,6 +302,10 @@ def build_hybrid_recommendations(
             reasons.append(f"Because you like {song.get('artist')}.")
         if effective_vibe in song_vibes:
             reasons.append(f"Suggested based on your selected {effective_vibe.title()} vibe.")
+        if historical_relevance > 0:
+            reasons.append("It reflects your positive listening feedback.")
+        elif historical_relevance < 0:
+            reasons.append("Your previous skip feedback lowered its ranking.")
         if not reasons:
             reasons.append("Fresh discovery based on the broader catalogue.")
 
@@ -392,7 +396,21 @@ def _fetch_interaction_history(connection, user_id):
     if user_id is None:
         return {}
     rows = connection.execute(
-        "SELECT song_id, COUNT(*) AS total FROM user_song_interactions WHERE user_id = ? GROUP BY song_id",
+        """
+        SELECT song_id,
+               SUM(
+                   CASE
+                       WHEN interaction_type IN ('like', 'save') THEN 2.0
+                       WHEN interaction_type = 'complete' THEN 1.5
+                       WHEN interaction_type IN ('play', 'listen') THEN 0.5
+                       WHEN interaction_type = 'skip' THEN -2.0
+                       ELSE 0.0
+                   END
+               ) AS feedback_score
+        FROM user_song_interactions
+        WHERE user_id = ?
+        GROUP BY song_id
+        """,
         (user_id,),
     ).fetchall()
     return {str(row[0]): float(row[1]) for row in rows}

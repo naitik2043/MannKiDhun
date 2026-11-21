@@ -3,7 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from recommendation_engine import build_hybrid_recommendations, create_music_catalogue
+from recommendation_engine import _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue
 
 
 class RecommendationEngineTests(unittest.TestCase):
@@ -77,6 +77,45 @@ class RecommendationEngineTests(unittest.TestCase):
             {song["id"] for song in recommendations},
             {1, 2},
         )
+
+    def test_negative_feedback_lowers_a_track_below_an_unrated_track(self):
+        songs = [
+            {"id": 1, "title": "Previously skipped", "artist": "Artist A", "language": "Hindi", "genre": "Pop"},
+            {"id": 2, "title": "Fresh option", "artist": "Artist B", "language": "Hindi", "genre": "Pop"},
+        ]
+
+        recommendations = build_hybrid_recommendations(
+            songs,
+            interaction_history={"1": -3.0, "2": 0.0},
+            limit=2,
+        )
+
+        self.assertEqual(recommendations[0]["id"], 2)
+        self.assertIn("skip feedback", recommendations[1]["explanation"].lower())
+
+    def test_interaction_history_uses_positive_and_negative_feedback_weights(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute(
+                "CREATE TABLE user_song_interactions (user_id INTEGER, song_id INTEGER, interaction_type TEXT)"
+            )
+            connection.executemany(
+                "INSERT INTO user_song_interactions (user_id, song_id, interaction_type) VALUES (?, ?, ?)",
+                [
+                    (5, 10, "like"),
+                    (5, 10, "play"),
+                    (5, 10, "complete"),
+                    (5, 11, "skip"),
+                    (5, 12, "save"),
+                ],
+            )
+
+            scores = _fetch_interaction_history(connection, 5)
+
+            self.assertEqual(scores, {"10": 4.0, "11": -2.0, "12": 2.0})
+            self.assertEqual(_fetch_interaction_history(connection, None), {})
+        finally:
+            connection.close()
 
     def test_catalogue_seed_contains_tracks_for_hybrid_recommendations(self):
         fd, database_path = tempfile.mkstemp(suffix=".sqlite3")
