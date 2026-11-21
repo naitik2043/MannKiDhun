@@ -182,6 +182,7 @@ class ApiRouteTests(unittest.TestCase):
             "/dashboard",
             "/mood-check",
             "/profile",
+            "/community",
             "/playlists/42",
         ):
             with self.subTest(path=path):
@@ -769,6 +770,24 @@ class ApiRouteTests(unittest.TestCase):
             saved["queue"],
             [track["id"] for track in response.json["recommendations"]],
         )
+
+    def test_public_playlist_directory_lists_only_shared_playlists(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "Community Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        client.post("/api/v1/playlists", json={"name": "Private playlist"})
+        client.post("/api/v1/playlists", json={"name": "Public playlist", "is_public": True})
+
+        response = client.get("/api/v1/public/playlists")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["name"] for item in response.json["playlists"]], ["Public playlist"])
 
     def test_public_playlist_endpoint_exposes_only_public_playlists(self):
         client = mood_app.app.test_client()

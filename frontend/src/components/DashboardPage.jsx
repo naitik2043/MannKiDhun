@@ -251,7 +251,7 @@ function DashboardPage({ user, theme, toggleTheme }) {
                 <h2 id="journal-title">Mood & music journal</h2>
               </div>
             </div>
-            <form className="dashboard-empty grid gap-3" onSubmit={saveJournalEntry}>
+            <form className="dashboard-empty dashboard-journal-form" onSubmit={saveJournalEntry}>
               <p>Record how you feel in your own words. Entries are private to your account; camera frames and expression estimates are never added here.</p>
               <label className="grid gap-1">
                 How are you feeling?

@@ -581,6 +581,7 @@ def frontend_page(page):
     if page not in {
         "app",
         "assistant",
+        "community",
         "dashboard",
         "mood-check",
         "profile",
