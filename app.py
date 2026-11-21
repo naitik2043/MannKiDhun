@@ -262,7 +262,10 @@ holistic = None
 face_detector = None
 inference_lock = threading.Lock()
 assistant_rate_lock = threading.Lock()
-assistant_requests = defaultdict(deque)
+ASSISTANT_RATE_LIMIT = 12
+ASSISTANT_RATE_LIMIT_WINDOW_SECONDS = 60
+ASSISTANT_RATE_LIMIT_MAX_KEYS = 10_000
+assistant_requests = OrderedDict()
 
 
 class LazyEmotionModel:
@@ -1740,15 +1743,40 @@ def recommendations_index():
     })
 
 
+def _prune_assistant_requests(requests, now):
+    while requests and now - requests[0] >= ASSISTANT_RATE_LIMIT_WINDOW_SECONDS:
+        requests.popleft()
+
+
+def _prune_assistant_request_registry(now):
+    """Drop expired least-recently-used account buckets."""
+    while assistant_requests:
+        oldest_user_id, oldest_requests = next(iter(assistant_requests.items()))
+        _prune_assistant_requests(oldest_requests, now)
+        if oldest_requests:
+            break
+        assistant_requests.popitem(last=False)
+
+
 def _assistant_rate_limited(user_id):
     now = time.monotonic()
     with assistant_rate_lock:
-        requests = assistant_requests[user_id]
-        while requests and now - requests[0] >= 60:
-            requests.popleft()
-        if len(requests) >= 12:
+        _prune_assistant_request_registry(now)
+        requests = assistant_requests.get(user_id)
+        if requests is None:
+            requests = deque()
+        else:
+            _prune_assistant_requests(requests, now)
+
+        if len(requests) >= ASSISTANT_RATE_LIMIT:
+            assistant_requests.move_to_end(user_id)
             return True
+
         requests.append(now)
+        assistant_requests[user_id] = requests
+        assistant_requests.move_to_end(user_id)
+        while len(assistant_requests) > ASSISTANT_RATE_LIMIT_MAX_KEYS:
+            assistant_requests.popitem(last=False)
         return False
 
 

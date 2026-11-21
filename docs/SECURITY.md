@@ -2,7 +2,7 @@
 
 ## Implemented safeguards
 
-- Failed sign-in attempts are throttled after five failures for the same identifier / client-address pair within a 15-minute window. The in-memory registry uses a 10,000-key LRU cap and removes expired least-recently-used entries opportunistically; successful sign-in clears its key. It remains process-local and is not shared across workers or hosts.
+- Failed sign-in attempts are throttled after five failures for the same identifier / client-address pair within a 15-minute window. The in-memory registry uses a 10,000-key LRU cap and removes expired least-recently-used entries opportunistically; successful sign-in clears its key. Assistant requests are limited to 12 per account per minute with the same bounded-registry approach. Both limiters remain process-local and are not shared across workers or hosts.
 - Browser mutation requests to API and expression routes reject an Origin / Referer host that is not the request host or a configured MANNKIDHUN_ALLOWED_ORIGINS host.
 - Browser mutation requests must carry a synchronizer token in both the same-site `mannkidhun_csrf` cookie and the `X-CSRF-Token` header. The frontend attaches the header automatically for same-origin API / expression mutations; tokens are rotated when the signed-in session is cleared.
 
@@ -13,7 +13,7 @@
 - SQL statements use SQLite parameter binding for user-controlled values.
 - Account/library routes use the authenticated user ID for ownership-scoped reads and updates.
 - Password reset tokens are not returned by the forgot-password endpoint. Until email delivery is implemented, password recovery is unavailable.
-- Assistant endpoints require authentication, limit message size, validate consent booleans, validate structured provider intent, filter results to catalogue records, and apply a process-local per-account rate limit.
+- Assistant endpoints require authentication, limit message size, validate consent booleans, validate structured provider intent, filter results to catalogue records, and apply a memory-bounded process-local per-account rate limit.
 - Assistant messages are held only in browser memory. Listening history and preferences are opt-in and influence assistant ranking only. Play activity and explicit Like/Not for me feedback are associated with the signed-in account; camera frames and assistant conversation transcripts are not added to this history. If configured, the AI provider receives only the current message, not account credentials or saved history.
 - Camera capture requires an explicit user action. Frames are processed in request memory and are not written to disk by the expression endpoint.
 - The expression model's SHA-256 checksum, metadata dimensions, and label mapping are verified before Keras deserializes the model artifact.
