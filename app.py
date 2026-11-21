@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 from urllib.parse import urlsplit
-from collections import OrderedDict, defaultdict, deque
+from collections import OrderedDict, deque
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -181,7 +181,7 @@ def _prune_login_attempt_registry(now):
     attempt, every later key was touched more recently and can be left alone.
     """
     while login_attempts:
-        oldest_key, oldest_attempts = next(iter(login_attempts.items()))
+        _, oldest_attempts = next(iter(login_attempts.items()))
         _prune_login_attempts(oldest_attempts, now)
         if oldest_attempts:
             break
@@ -1751,7 +1751,7 @@ def _prune_assistant_requests(requests, now):
 def _prune_assistant_request_registry(now):
     """Drop expired least-recently-used account buckets."""
     while assistant_requests:
-        oldest_user_id, oldest_requests = next(iter(assistant_requests.items()))
+        _, oldest_requests = next(iter(assistant_requests.items()))
         _prune_assistant_requests(oldest_requests, now)
         if oldest_requests:
             break
