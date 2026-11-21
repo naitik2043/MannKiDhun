@@ -2,6 +2,8 @@
 
 All JSON APIs use the Flask session cookie. Browser mutation requests to `/api/*` and `/predict` also require the `mannkidhun_csrf` cookie value in the `X-CSRF-Token` header; the React bootstrap adds this automatically for same-origin mutations. Requests omitting both Origin and Referer are currently allowed for trusted non-browser / legacy clients. Except for authentication, `/predict`, and public recommendation reads, account/library routes require a signed-in user. The React development server proxies these endpoints to Flask.
 
+For sequence diagrams showing browser-to-API request handling, authentication, music discovery, expression estimation, playlists, and group listening, see [API interaction diagrams](./API_INTERACTION.md).
+
 ## Authentication and account
 
 | Method | Path | Purpose |
