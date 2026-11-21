@@ -165,6 +165,26 @@ function DashboardPage({ user, theme, toggleTheme }) {
     }
   }
 
+  function exportMusicDna() {
+    if (!musicDna?.enabled) return;
+    const payload = {
+      exported_at: new Date().toISOString(),
+      product: "MannKiDhun",
+      privacy_note: "This file contains the current private Music DNA summary. Store it securely.",
+      ...musicDna,
+    };
+    const file = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "mannkidhun-music-dna.json";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setJournalStatus("Your Music DNA JSON export was prepared in this browser.");
+  }
+
   async function resetMusicDna() {
     const confirmed = window.confirm(
       "Reset Music DNA and listening history? This deletes your plays, likes, skips, and recommendation feedback. Saved songs and your declared preferences will be kept."
@@ -254,6 +274,9 @@ function DashboardPage({ user, theme, toggleTheme }) {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
+                  <button type="button" className="dashboard-text-link" onClick={exportMusicDna}>
+                    Download Music DNA JSON
+                  </button>
                   <button type="button" className="dashboard-text-link" onClick={toggleMusicDna} disabled={musicDnaBusy}>
                     {musicDnaBusy ? "Updating…" : "Turn off Music DNA"}
                   </button>

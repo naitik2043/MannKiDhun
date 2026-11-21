@@ -99,7 +99,7 @@ Entries are account-scoped and can be listed with GET or deleted individually. J
 
 ### Personal Music DNA
 
-Music DNA is disabled by default. Send `POST /api/v1/users/me/music-dna/consent` with `{ "enabled": true }` to opt in, then read `GET /api/v1/users/me/music-dna`. Disabling consent hides the derived profile; the endpoint does not share it publicly. DELETE `/api/v1/users/me/music-dna` additionally deletes plays, likes, skips, completions, and recommendation feedback, disables Music DNA consent, and keeps saved songs plus declared preference lists.
+Music DNA is disabled by default. Send `POST /api/v1/users/me/music-dna/consent` with `{ "enabled": true }` to opt in, then read `GET /api/v1/users/me/music-dna`. Disabling consent hides the derived profile; the endpoint does not share it publicly. The dashboard can download the currently displayed summary as a local JSON file. DELETE `/api/v1/users/me/music-dna` additionally deletes plays, likes, skips, completions, and recommendation feedback, disables Music DNA consent, and keeps saved songs plus declared preference lists.
 
 ### Playlist refinement and sharing
 

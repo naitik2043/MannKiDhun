@@ -7,7 +7,7 @@ This roadmap separates shipped behaviour from the remaining product work. Implem
 - Manual mood selection and optional expression check-in; camera inference remains opt-in and raw frames are not saved.
 - **Match / Change / Explore** modes, including explicit current/target mood choices.
 - Catalogue-grounded music assistant, local intent fallback, explainable recommendations, Like / Not for me feedback, and signed positive/negative history ranking.
-- **Personal Music DNA**, disabled by default, with private summaries for languages, genres, artists, listening tags, and recurring vibes.
+- **Personal Music DNA**, disabled by default, with private summaries for languages, genres, artists, listening tags, and recurring vibes; listeners can download a JSON export or reset feedback/history while retaining saved songs and declared preferences.
 - **Mood & Music Journal**, with manually entered moods and private notes.
 - **Adaptive queue builder**, saved playback queue, and Start / Previous / Next controls. It is still a queue snapshot; tracks do not auto-advance when the YouTube embed ends.
 - Natural-language playlist editing for add, remove, and reorder actions.
