@@ -17,9 +17,9 @@ In development, Vite proxies `/api` and `/predict` to Flask. In the current sing
 ## Assistant request flow
 
 1. The authenticated client sends a bounded text query, optional previous intent, and explicit preference/history consent flags.
-2. The backend parses mood, catalogue genre/language/artist, and listening context. The optional provider receives only the current text query and must return structured intent; returned values are checked against supported fields and catalogue artists.
+2. The backend parses mood, catalogue genre/language/artist, and listening context. The listener may explicitly select a context (studying, travelling, evening, workout, or sleep), which takes precedence over parsed context. The optional provider receives only the current text query and must return structured intent; returned values are checked against supported fields and catalogue artists.
 3. If the provider is absent, unavailable, or returns unusable data, local rules parse the request.
-4. The recommendation engine ranks existing catalogue records and applies explicit artist, language, and genre filters. If exact filters yield no tracks, the assistant explains this and offers available catalogue alternatives.
+4. The recommendation engine ranks existing catalogue records using preferences, catalogue similarity, vibe, artist taste, explicit feedback, and an optional context affinity derived from curated catalogue tags. Context affinity is a transparent heuristic, not wearable/sensor inference. The engine applies explicit artist, language, and genre filters. If exact filters yield no tracks, the assistant explains this and offers available catalogue alternatives.
 5. The client keeps messages in page memory. It does not persist conversations.
 
 ## Modes, personalisation and social sharing

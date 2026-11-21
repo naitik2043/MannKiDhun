@@ -6,6 +6,7 @@ This roadmap separates shipped behaviour from the remaining product work. Implem
 
 - Manual mood selection and optional expression check-in; camera inference remains opt-in and raw frames are not saved.
 - **Match / Change / Explore** modes, including explicit current/target mood choices.
+- Optional listener-selected context (studying, travelling, evening, workout, or sleep) that adjusts ranking using transparent catalogue-tag affinities; no wearable or environmental sensors are inferred.
 - Catalogue-grounded assistant with local intent fallback, explainable recommendations, Like / Not for me feedback, and signed positive/negative history ranking.
 - **Personal Music DNA**, disabled by default, with private summaries for languages, genres, artists, listening tags, and recurring vibes. Users can download JSON, turn off consent, or reset feedback/history while preserving saved songs and declared preferences.
 - **Mood & Music Journal**, with manually entered moods, private notes, and mood-pattern summaries.
@@ -20,7 +21,7 @@ This roadmap separates shipped behaviour from the remaining product work. Implem
 1. **Full player experience** — a persistent site-wide player, media-session integration, automatic track-ended detection, durable position tracking, repeat/shuffle, and queue hand-off across pages. Current controls are assistant-page scoped and manually advanced.
 2. **Real-time collaborative sessions** — live presence, simultaneous editing indicators, conflict resolution, activity stream, and invited-user notifications. Current collaboration is authenticated role-based editing without live presence.
 3. **Verified India-first catalogue expansion** — continue adding sourced tracks for Kannada, Urdu, and other regional scenes. Never invent provider IDs or playback URLs.
-4. **Richer context and personalization** — energy/tempo/era metadata, user-tunable diversity, profile coverage/confidence, export/reset, and session adaptation based on activity during playback.
+4. **Richer context and personalization** — replace starter tag heuristics with verified energy/tempo/era metadata, show profile coverage/confidence, add user-tunable diversity, and adapt sessions to activity during playback. Measure ranking changes with listener feedback before claiming quality improvements.
 5. **Conversational voice** — turn-taking, interruptible speech, and spoken follow-up questions. Current support is browser dictation plus text-to-speech.
 6. **Wearable/context integrations** — only after privacy, consent, and reliability design.
 

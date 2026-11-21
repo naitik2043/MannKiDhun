@@ -45,6 +45,28 @@ class RecommendationEngineTests(unittest.TestCase):
         self.assertEqual(recommendations[0]["vibe"], "romantic")
         self.assertTrue(recommendations[0]["score"] >= recommendations[1]["score"])
 
+    def test_context_affinity_prioritizes_tracks_with_matching_catalogue_tags(self):
+        songs = [
+            {"id": 1, "title": "Quiet study track", "tags": ["calm", "acoustic"]},
+            {"id": 2, "title": "High-energy track", "tags": ["dance", "energetic"]},
+        ]
+
+        recommendations = build_hybrid_recommendations(songs, context="studying", limit=2)
+
+        self.assertEqual(recommendations[0]["id"], 1)
+        self.assertEqual(recommendations[0]["context"], "studying")
+        self.assertEqual(recommendations[0]["context_match"], 1.0)
+        self.assertIn("studying context", recommendations[0]["explanation"])
+        self.assertEqual(recommendations[1]["context_match"], 0.0)
+
+    def test_context_is_ignored_when_not_selected(self):
+        song = {"id": 1, "title": "Quiet study track", "tags": ["calm", "acoustic"]}
+        without_context = build_hybrid_recommendations([song], limit=1)[0]
+        with_context = build_hybrid_recommendations([song], context=None, limit=1)[0]
+
+        self.assertEqual(without_context["score"], with_context["score"])
+        self.assertIsNone(without_context["context"])
+
     def test_build_hybrid_recommendations_applies_explicit_request_filters(self):
         songs = [
             {"id": 1, "title": "Hindi pop", "artist": "Artist A", "language": "Hindi", "genre": "Pop"},

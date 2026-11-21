@@ -1186,5 +1186,92 @@ class ApiRouteTests(unittest.TestCase):
 
 
 
+    def test_assistant_uses_explicit_listening_context_for_ranking(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Context Listener", "email": email, "password": "test-pass-123"},
+        )
+        extracted = {"mood": None, "genre": None, "language": None, "artist": None, "context": None}
+        recommendations = [{"id": 1, "title": "A catalogue track"}]
+        with (
+            patch.object(mood_app, "extract_music_intent", return_value=(extracted, "rules")),
+            patch.object(mood_app, "get_user_recommendations", return_value=recommendations) as recommend,
+        ):
+            response = client.post(
+                "/api/v1/assistant/chat",
+                json={
+                    "message": "Find something for this moment",
+                    "context": "studying",
+                    "mode": "match",
+                    "use_preferences": False,
+                    "use_history": False,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["context"], "studying")
+        self.assertEqual(response.json["intent"]["context"], "studying")
+        self.assertEqual(recommend.call_args.kwargs["context"], "studying")
+        self.assertEqual(recommend.call_args.kwargs["vibe"], "focused")
+
+    def test_assistant_rejects_unsupported_listening_context(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Context Listener", "email": email, "password": "test-pass-123"},
+        )
+        extracted = {"mood": None, "genre": None, "language": None, "artist": None, "context": None}
+        with patch.object(mood_app, "extract_music_intent", return_value=(extracted, "rules")):
+            response = client.post(
+                "/api/v1/assistant/chat",
+                json={"message": "Play some music", "context": "spaceship"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("listening context", response.json["error"])
+
+    def test_adaptive_session_passes_selected_context_to_recommendations(self):
+        client = mood_app.app.test_client()
+        email = f"{uuid.uuid4().hex}@example.com"
+        client.post(
+            "/api/auth/register",
+            json={"name": "Session Listener", "email": email, "password": "test-pass-123"},
+        )
+        recommendations = [{"id": 1, "title": "A catalogue track"}]
+        with patch.object(
+            mood_app, "get_user_recommendations", return_value=recommendations
+        ) as recommend:
+            response = client.post(
+                "/api/v1/users/me/adaptive-session",
+                json={
+                    "mode": "explore",
+                    "context": "workout",
+                    "use_preferences": False,
+                    "use_history": False,
+                    "limit": 8,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["context"], "workout")
+        self.assertEqual(recommend.call_args.kwargs["context"], "workout")
+
+    def test_security_headers_are_present(self):
+        response = mood_app.app.test_client().get("/healthz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["Referrer-Policy"], "strict-origin-when-cross-origin")
+        self.assertEqual(response.headers["X-Frame-Options"], "SAMEORIGIN")
+        self.assertEqual(
+            response.headers["Permissions-Policy"],
+            "camera=(self), microphone=(self), geolocation=()",
+        )
+        response.close()
+
+
 if __name__ == "__main__":
     unittest.main()

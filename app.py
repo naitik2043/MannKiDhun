@@ -66,6 +66,14 @@ MOOD_ALIASES = {
     "susurprise": "surprise",
     "rocrock": "rock",
 }
+ALLOWED_LISTENING_CONTEXTS = {"studying", "travelling", "evening", "workout", "sleep"}
+CONTEXT_VIBE_FALLBACK = {
+    "studying": "focused",
+    "travelling": "energetic",
+    "evening": "relaxed",
+    "workout": "energetic",
+    "sleep": "relaxed",
+}
 
 app = Flask(
     __name__,
@@ -1597,13 +1605,24 @@ def assistant_chat():
         not isinstance(current_mood, str) or current_mood.strip().lower() not in allowed_moods
     ):
         return jsonify({"error": "Choose a supported current mood."}), 400
-    context_vibes = {
-        "studying": "focused",
-        "travelling": "energetic",
-        "evening": "relaxed",
-        "workout": "energetic",
-        "sleep": "relaxed",
-    }
+
+    requested_context = payload.get("context")
+    if requested_context == "":
+        requested_context = None
+    if requested_context is not None and (
+        not isinstance(requested_context, str)
+        or requested_context.strip().lower() not in ALLOWED_LISTENING_CONTEXTS
+    ):
+        return jsonify({"error": "Choose a supported listening context."}), 400
+    context = (
+        requested_context.strip().lower()
+        if requested_context is not None
+        else intent.get("context")
+    )
+    if context not in ALLOWED_LISTENING_CONTEXTS:
+        context = None
+    intent["context"] = context
+
     if mode == "change":
         vibe = (target_mood or intent["mood"] or "").strip().lower()
         if not vibe:
@@ -1611,7 +1630,7 @@ def assistant_chat():
     elif mode == "explore":
         vibe = "neutral"
     else:
-        vibe = intent["mood"] or (current_mood.strip().lower() if current_mood else None) or context_vibes.get(intent["context"], "neutral")
+        vibe = intent["mood"] or (current_mood.strip().lower() if current_mood else None) or CONTEXT_VIBE_FALLBACK.get(context, "neutral")
 
     query_filters = {
         key: intent[key] for key in ("genre", "language", "artist") if intent[key]
@@ -1629,6 +1648,7 @@ def assistant_chat():
         include_preferences=use_preferences,
         include_history=use_history,
         query_filters=query_filters,
+        context=context,
     )
     used_fallback = not recommendations and bool(query_filters)
     if used_fallback:
@@ -1640,6 +1660,7 @@ def assistant_chat():
             limit=6,
             include_preferences=use_preferences,
             include_history=use_history,
+            context=context,
         )
 
     if recommendations:
@@ -1664,6 +1685,7 @@ def assistant_chat():
             "recommendations": recommendations,
             "intent": intent,
             "mode": mode,
+            "context": context,
             "used_fallback": used_fallback,
             "intent_provider": intent_provider,
             "personalisation": {
@@ -2016,6 +2038,16 @@ def create_adaptive_session():
         return jsonify({"error": "Choose a supported mood."}), 400
     if mode == "change" and not mood:
         return jsonify({"error": "Choose a target mood for Change mode."}), 400
+    context = payload.get("context")
+    if context == "":
+        context = None
+    if context is not None and (
+        not isinstance(context, str)
+        or context.strip().lower() not in ALLOWED_LISTENING_CONTEXTS
+    ):
+        return jsonify({"error": "Choose a supported listening context."}), 400
+    if context is not None:
+        context = context.strip().lower()
     if type(use_preferences) is not bool or type(use_history) is not bool:
         return jsonify({"error": "Personalisation choices must be true or false."}), 400
     limit = payload.get("limit", 8)
@@ -2035,6 +2067,7 @@ def create_adaptive_session():
         include_preferences=use_preferences,
         include_history=use_history,
         query_filters=query_filters,
+        context=context,
     )
     if not recommendations:
         recommendations = get_user_recommendations(
@@ -2045,6 +2078,7 @@ def create_adaptive_session():
             limit=limit,
             include_preferences=use_preferences,
             include_history=use_history,
+            context=context,
         )
     queue = [int(track["id"]) for track in recommendations if isinstance(track.get("id"), int)]
     state = save_playback_state(
@@ -2055,6 +2089,7 @@ def create_adaptive_session():
     return jsonify({
         "mode": mode,
         "mood": vibe,
+        "context": context,
         "recommendations": recommendations,
         "state": state,
         "message": "Your session is ready. New Like and Not for me feedback will shape the next session you build.",

@@ -99,12 +99,17 @@ describe("AssistantPage", () => {
       }),
     );
 
+    fireEvent.change(screen.getByLabelText("Listening context (optional)"), {
+      target: { value: "studying" },
+    });
     fireEvent.change(screen.getByLabelText("Your music request"), {
       target: { value: "peaceful music" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Catalogue Track")).toBeTruthy();
+    const chatCall = fetchMock.mock.calls.find(([url]) => url === "/api/v1/assistant/chat");
+    expect(JSON.parse(chatCall[1].body)).toMatchObject({ context: "studying" });
     fireEvent.change(screen.getByRole("combobox", { name: "Discovery mode" }), { target: { value: "change" } });
     fireEvent.change(screen.getByLabelText("Mood you want to move toward"), { target: { value: "happy" } });
     fireEvent.click(screen.getByRole("button", { name: "Build adaptive session" }));
@@ -117,6 +122,7 @@ describe("AssistantPage", () => {
           mood: "happy",
           use_preferences: false,
           use_history: false,
+          context: "studying",
           limit: 8,
         }),
       }),

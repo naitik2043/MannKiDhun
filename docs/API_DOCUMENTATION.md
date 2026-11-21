@@ -61,11 +61,12 @@ Legacy `/api/auth/*` routes remain available for the current client.
   "use_history": false,
   "mode": "match",
   "current_mood": null,
+  "context": "studying",
   "target_mood": null
 }
 ```
 
-`message` is required and limited to 500 characters. Consent fields must be booleans. `mode` accepts `match`, `change`, or `explore`; Match may accept `current_mood`, and Change requires a supported `target_mood`. The response includes a user-facing `response`, catalogue-backed `recommendations`, validated `intent`, `mode`, `used_fallback`, `intent_provider` (`ai` or `rules`), and the consent choices used for ranking. Requests are limited to 12 per minute per account within a single server process. Voice capture happens in the browser and sends the recognised text through this same endpoint.
+`message` is required and limited to 500 characters. Consent fields must be booleans. `mode` accepts `match`, `change`, or `explore`; Match may accept `current_mood`, and Change requires a supported `target_mood`. The optional `context` field accepts `studying`, `travelling`, `evening`, `workout`, or `sleep`. An explicit selection takes precedence over context parsed from the text request and influences ranking through transparent catalogue-tag affinities. The response includes a user-facing `response`, catalogue-backed `recommendations`, validated `intent`, `mode`, `used_fallback`, `intent_provider` (`ai` or `rules`), and the consent choices used for ranking. Requests are limited to 12 per minute per account within a single server process. Voice capture happens in the browser and sends the recognised text through this same endpoint.
 
 ### Listening activity and recommendation feedback
 
@@ -85,7 +86,7 @@ The same listening-history endpoint accepts feedback events such as `like` and `
 
 ### Adaptive sessions
 
-`POST /api/v1/users/me/adaptive-session` accepts `mode` (`match`, `change`, or `explore`), optional `mood`, `use_preferences`, `use_history`, and `limit` (3–12). It returns the recommendations and persists their track IDs to the user's playback-state queue. History is not used unless `use_history: true` is explicitly supplied.
+`POST /api/v1/users/me/adaptive-session` accepts `mode` (`match`, `change`, or `explore`), optional `mood`, `context` (`studying`, `travelling`, `evening`, `workout`, or `sleep`), `use_preferences`, `use_history`, and `limit` (3–12). It returns the recommendations and persists their track IDs to the user's playback-state queue. History is not used unless `use_history: true` is explicitly supplied.
 
 ### Mood journal
 

@@ -33,6 +33,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
   const [actionStatus, setActionStatus] = useState("");
   const [mode, setMode] = useState("match");
   const [currentMood, setCurrentMood] = useState("");
+  const [currentContext, setCurrentContext] = useState("");
   const [targetMood, setTargetMood] = useState("relaxed");
   const [isPublicPlaylist, setIsPublicPlaylist] = useState(false);
   const [refinePlaylistId, setRefinePlaylistId] = useState("");
@@ -119,6 +120,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
           use_history: useHistory,
           mode,
           current_mood: currentMood || null,
+          context: currentContext || null,
           target_mood: mode === "change" ? targetMood : null,
         }),
       });
@@ -156,6 +158,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
           mood: mode === "change" ? targetMood : currentMood || null,
           use_preferences: usePreferences,
           use_history: useHistory,
+          context: currentContext || null,
           limit: 8,
         }),
       });
@@ -578,6 +581,17 @@ function AssistantPage({ user, theme, toggleTheme }) {
                   </select>
                 </label>
               )}
+              <label>
+                Listening context (optional)
+                <select value={currentContext} onChange={(event) => setCurrentContext(event.target.value)}>
+                  <option value="">No context preference</option>
+                  <option value="studying">Studying / working</option>
+                  <option value="travelling">Travelling / commute</option>
+                  <option value="evening">Evening / winding down</option>
+                  <option value="workout">Workout / exercise</option>
+                  <option value="sleep">Sleep / bedtime</option>
+                </select>
+              </label>
               <button type="button" onClick={buildAdaptiveSession} disabled={loading}>
                 Build adaptive session
               </button>

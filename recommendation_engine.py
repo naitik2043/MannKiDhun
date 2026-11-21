@@ -35,6 +35,24 @@ VIBE_ALIASES = {
     "devotional": "devotional",
 }
 
+# Transparent catalogue-tag affinities, not sensor-derived signals.
+CONTEXT_WEIGHT = 0.15
+CONTEXT_TAGS = {
+    "studying": {"calm", "soft", "acoustic", "classical", "melodic", "dreamy", "instrumental", "focus", "lofi", "relaxed"},
+    "travelling": {"dance", "driving", "upbeat", "energetic", "lively", "celebration", "catchy", "sunny", "roadtrip"},
+    "evening": {"calm", "peaceful", "soft", "dreamy", "melodic", "soulful", "acoustic", "slow", "relaxed"},
+    "workout": {"powerful", "driving", "dance", "energetic", "upbeat", "motivational", "rock", "celebration"},
+    "sleep": {"calm", "peaceful", "soft", "slow", "dreamy", "soothing", "ambient", "relaxed"},
+}
+
+
+def _context_affinity(song_features, context):
+    context_tags = CONTEXT_TAGS.get(_normalize_text(context))
+    if not context_tags:
+        return 0.0, []
+    matched_tags = sorted(song_features & context_tags)
+    return min(1.0, len(matched_tags) / 2.0), matched_tags
+
 DEFAULT_SONGS = [
     {
         "title": "Levitating",
@@ -309,6 +327,7 @@ def build_hybrid_recommendations(
     interaction_history=None,
     limit=6,
     query_filters=None,
+    context=None,
 ):
     user_preferences = user_preferences or {}
     interaction_history = interaction_history or {}
@@ -337,6 +356,8 @@ def build_hybrid_recommendations(
         song_artist = _normalize_text(song.get("artist"))
         song_tags = {_normalize_text(item) for item in song.get("tags", [])}
         song_vibes = {_normalize_vibe(item) for item in song.get("vibes", [])}
+        song_features = song_tags | song_genres | song_vibes
+        context_match, matched_context_tags = _context_affinity(song_features, context)
 
         requested_genre = _normalize_text(query_filters.get("genre"))
         requested_language = _normalize_text(query_filters.get("language"))
@@ -383,15 +404,25 @@ def build_hybrid_recommendations(
         historical_relevance = float(interaction_history.get(song_id, 0.0) or interaction_history.get(str(song_id), 0.0) or 0.0)
         behavioural_relevance = max(-1.0, min(historical_relevance / 3.0, 1.0))
 
-        score = (
+        base_score = (
             RECOMMENDATION_WEIGHTS["preference_match"] * preference_match
             + RECOMMENDATION_WEIGHTS["content_similarity"] * content_similarity
             + RECOMMENDATION_WEIGHTS["vibe_match"] * vibe_match
             + RECOMMENDATION_WEIGHTS["artist_preference"] * artist_preference
             + RECOMMENDATION_WEIGHTS["behavioural_relevance"] * behavioural_relevance
         )
+        score = (
+            base_score * (1.0 - CONTEXT_WEIGHT) + context_match * CONTEXT_WEIGHT
+            if context in CONTEXT_TAGS
+            else base_score
+        )
 
         reasons = []
+        if context in CONTEXT_TAGS and matched_context_tags:
+            reasons.append(
+                f"Its catalogue tags fit your {context} context "
+                f"({', '.join(matched_context_tags[:3])})."
+            )
         if song_language and song_language in preferred_languages:
             reasons.append(f"You enjoy {song_language} music.")
         if song_genres and preferred_genres and (song_genres & preferred_genres):
@@ -422,11 +453,16 @@ def build_hybrid_recommendations(
                 "duration": song.get("duration"),
                 "score": round(float(score), 4),
                 "vibe": effective_vibe,
+                "context": context if context in CONTEXT_TAGS else None,
+                "context_match": round(float(context_match), 4),
                 "explanation": " ".join(reasons[:2]),
                 "metadata": {
                     "vibes": song.get("vibes", []),
                     "tags": song.get("tags", []),
                     "genre": song.get("genre") or (sorted(song_genres)[:1] or [""])[0],
+                    "context": context if context in CONTEXT_TAGS else None,
+                    "context_match": round(float(context_match), 4),
+                    "matched_context_tags": matched_context_tags,
                 },
             }
         )
@@ -549,6 +585,7 @@ def get_user_recommendations(
     include_preferences=True,
     include_history=True,
     query_filters=None,
+    context=None,
 ):
     with closing(_connect_database(database_path)) as connection:
         connection.row_factory = sqlite3.Row
@@ -569,6 +606,7 @@ def get_user_recommendations(
             interaction_history=interactions,
             limit=limit,
             query_filters=query_filters,
+            context=context,
         )
 
 
