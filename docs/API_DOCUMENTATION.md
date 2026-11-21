@@ -19,6 +19,8 @@ All JSON APIs use the Flask session cookie. Except for authentication, `/predict
 
 Legacy `/api/auth/*` routes remain available for the current client.
 
+Sign-in throttling returns HTTP 429 with a `Retry-After` header after repeated failed attempts. Browser mutation requests to `/api/*` and `/predict` validate the Origin / Referer host against the request host and any additional hosts in `MANNKIDHUN_ALLOWED_ORIGINS`. Add the local Vite origin to that variable when developing through the Vite proxy. The origin check is defense in depth, not a synchronizer-token CSRF implementation.
+
 ## Music and assistant
 
 | Method | Path | Purpose |

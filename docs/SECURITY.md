@@ -28,8 +28,8 @@
 - `SECRET_KEY` falls back to a newly generated process-local value when unset; deployments must supply a stable secret.
 - Secure cookies and HSTS require explicit HTTPS configuration. Reverse-proxy trust, HTTPS enforcement, a restrictive Content Security Policy, production error monitoring, and alerting still need deployment-level review.
 - The database is local SQLite. `MANNKIDHUN_DATA_DIR` can place the database and profile uploads on a mounted persistent disk, but migration versioning, managed-database support, automated backups, and tested restore procedures are absent.
-- Dependency vulnerability scanning and automated dependency updates are not configured. GitHub Actions runs tests and builds the frontend, but does not perform security scanning.
-- Assistant request rate limiting is in-memory and is not shared across workers.
+- GitHub Actions now runs CodeQL static analysis for Python and JavaScript / TypeScript. Dependency vulnerability scanning and automated dependency updates are still not configured.
+- Assistant and failed-login rate limits are process-local and are not shared across workers.
 - Model output is not calibrated and has not been evaluated on a labeled, subject-separated dataset. Expression estimates are not verified emotional states.
 
 ## Incident and operational notes
