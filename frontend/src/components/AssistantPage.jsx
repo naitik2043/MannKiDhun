@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Header from "./Header.jsx";
 import SiteFooter from "./SiteFooter.jsx";
 
@@ -27,6 +27,16 @@ function AssistantPage({ user, theme, toggleTheme }) {
   const [selectedPlaylists, setSelectedPlaylists] = useState({});
   const [activeSong, setActiveSong] = useState(null);
   const [actionStatus, setActionStatus] = useState("");
+  const [mode, setMode] = useState("match");
+  const [currentMood, setCurrentMood] = useState("");
+  const [targetMood, setTargetMood] = useState("relaxed");
+  const [isPublicPlaylist, setIsPublicPlaylist] = useState(false);
+  const [refinePlaylistId, setRefinePlaylistId] = useState("");
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -42,6 +52,10 @@ function AssistantPage({ user, theme, toggleTheme }) {
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => () => {
+    if (recognitionRef.current) recognitionRef.current.stop();
   }, []);
 
   async function ask(prompt = message) {
@@ -62,6 +76,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
           previous_intent: lastIntent,
           use_preferences: usePreferences,
           use_history: useHistory,
+          mode,
+          current_mood: currentMood || null,
+          target_mood: mode === "change" ? targetMood : null,
         }),
       });
       const result = await response.json().catch(() => null);
@@ -83,6 +100,121 @@ function AssistantPage({ user, theme, toggleTheme }) {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function buildAdaptiveSession() {
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson("/api/v1/users/me/adaptive-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          mood: mode === "change" ? targetMood : currentMood || null,
+          use_preferences: usePreferences,
+          use_history: useHistory,
+          limit: 8,
+        }),
+      });
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: result.message || "Your adaptive listening session is ready.",
+          recommendations: result.recommendations || [],
+        },
+      ]);
+      setActionStatus("Your adaptive session is saved to your listening queue.");
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function refinePlaylist(event) {
+    event.preventDefault();
+    const instruction = refineInstruction.trim();
+    if (!refinePlaylistId || !instruction) return;
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${refinePlaylistId}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction }),
+      });
+      setPlaylists((current) => current.map((playlist) =>
+        playlist.id === Number(refinePlaylistId)
+          ? { ...playlist, track_count: result.playlist?.tracks?.length ?? playlist.track_count }
+          : playlist
+      ));
+      setRefineInstruction("");
+      setActionStatus(
+        result.added_count
+          ? `Added ${result.added_count} track(s) to ${result.playlist.name}.`
+          : "No new catalogue tracks matched that instruction. Try a mood, language, genre, or artist.",
+      );
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function togglePlaylistSharing(playlist) {
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${playlist.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: !playlist.is_public }),
+      });
+      const updated = result.playlist || { ...playlist, is_public: !playlist.is_public };
+      setPlaylists((current) => current.map((item) => item.id === playlist.id ? updated : item));
+      if (updated.is_public) {
+        const shareUrl = `${window.location.origin}/playlists/${playlist.id}`;
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          setActionStatus("Public playlist link copied: " + shareUrl);
+        } catch {
+          setActionStatus("Playlist is public. Share this link: " + shareUrl);
+        }
+      } else {
+        setActionStatus("Playlist is private again.");
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  function startVoiceInput() {
+    setVoiceError("");
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceError("Voice input is not supported in this browser. You can type your request instead.");
+      return;
+    }
+    if (recognitionRef.current) recognitionRef.current.stop();
+    const recognition = new SpeechRecognition();
+    recognition.lang = voiceLanguage;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript;
+      if (transcript) setMessage((current) => (current ? current + " " : "") + transcript);
+    };
+    recognition.onerror = () => setVoiceError("We couldn't capture that voice request. Please try again.");
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    try {
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setVoiceError("Voice input could not start. Please try again.");
     }
   }
 
@@ -175,10 +307,11 @@ function AssistantPage({ user, theme, toggleTheme }) {
       const result = await requestJson("/api/v1/playlists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, is_public: isPublicPlaylist }),
       });
       setPlaylists((current) => [...current, result.playlist]);
       setNewPlaylistName("");
+      setIsPublicPlaylist(false);
       setActionStatus(`${result.playlist.name} was created.`);
     } catch (requestError) {
       setError(requestError.message);
@@ -257,6 +390,50 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 Clear conversation
               </button>
             </div>
+            <section className="assistant-discovery-controls" aria-label="Discovery mode">
+              <label>
+                Discovery mode
+                <select value={mode} onChange={(event) => setMode(event.target.value)}>
+                  <option value="match">Match my mood</option>
+                  <option value="change">Change my mood</option>
+                  <option value="explore">Explore freely</option>
+                </select>
+              </label>
+              {mode === "match" && (
+                <label>
+                  Current mood (optional)
+                  <select value={currentMood} onChange={(event) => setCurrentMood(event.target.value)}>
+                    <option value="">Use the mood in my request</option>
+                    <option value="happy">Happy</option>
+                    <option value="sad">Sad</option>
+                    <option value="relaxed">Relaxed</option>
+                    <option value="energetic">Energetic</option>
+                    <option value="romantic">Romantic</option>
+                    <option value="focused">Focused</option>
+                    <option value="motivational">Motivational</option>
+                    <option value="devotional">Devotional</option>
+                  </select>
+                </label>
+              )}
+              {mode === "change" && (
+                <label>
+                  Mood you want to move toward
+                  <select value={targetMood} onChange={(event) => setTargetMood(event.target.value)}>
+                    <option value="happy">Happy</option>
+                    <option value="sad">Sad</option>
+                    <option value="relaxed">Relaxed</option>
+                    <option value="energetic">Energetic</option>
+                    <option value="romantic">Romantic</option>
+                    <option value="focused">Focused</option>
+                    <option value="motivational">Motivational</option>
+                    <option value="devotional">Devotional</option>
+                  </select>
+                </label>
+              )}
+              <button type="button" onClick={buildAdaptiveSession} disabled={loading}>
+                Build adaptive session
+              </button>
+            </section>
             <form id="assistant-playlists" className="assistant-create-playlist" onSubmit={createPlaylist}>
               <label htmlFor="assistant-playlist-name">Create a playlist</label>
               <div>
@@ -269,7 +446,53 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 />
                 <button type="submit" disabled={!newPlaylistName.trim()}>Create</button>
               </div>
+              <label className="assistant-public-toggle">
+                <input
+                  type="checkbox"
+                  checked={isPublicPlaylist}
+                  onChange={(event) => setIsPublicPlaylist(event.target.checked)}
+                />
+                Make this playlist public and shareable
+              </label>
             </form>
+            {playlists.length > 0 && (
+              <section className="assistant-playlist-tools" aria-label="Playlist tools">
+                <h2>Your playlists</h2>
+                {playlists.map((playlist) => (
+                  <div className="assistant-playlist-row" key={playlist.id}>
+                    <span>{playlist.name} · {playlist.track_count || 0} tracks</span>
+                    <button type="button" onClick={() => togglePlaylistSharing(playlist)}>
+                      {playlist.is_public ? "Copy public link / Make private" : "Make public"}
+                    </button>
+                  </div>
+                ))}
+                <form className="assistant-refine-playlist" onSubmit={refinePlaylist}>
+                  <label>
+                    Refine a playlist with words
+                    <select
+                      value={refinePlaylistId}
+                      onChange={(event) => setRefinePlaylistId(event.target.value)}
+                      required
+                    >
+                      <option value="">Choose playlist</option>
+                      {playlists.map((playlist) => (
+                        <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <input
+                    value={refineInstruction}
+                    onChange={(event) => setRefineInstruction(event.target.value)}
+                    maxLength={200}
+                    placeholder="Try “make it calmer” or “more Punjabi songs”"
+                    aria-label="Playlist refinement instruction"
+                  />
+                  <button type="submit" disabled={!refinePlaylistId || refineInstruction.trim().length < 3}>
+                    Refine playlist
+                  </button>
+                </form>
+              </section>
+            )}
 
             {activeSong && (
               <div className="assistant-player">
@@ -384,9 +607,29 @@ function AssistantPage({ user, theme, toggleTheme }) {
                   placeholder="Try “peaceful Hindi music for the evening”…"
                   disabled={loading}
                 />
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  disabled={loading || isListening}
+                  aria-label="Use voice input"
+                >
+                  {isListening ? "Listening…" : "🎙 Voice"}
+                </button>
                 <button type="submit" disabled={loading || !message.trim()}>
                   {loading ? "Thinking…" : "Send"}
                 </button>
+              </div>
+              <div className="assistant-voice-controls">
+                <label htmlFor="assistant-voice-language">Voice language</label>
+                <select
+                  id="assistant-voice-language"
+                  value={voiceLanguage}
+                  onChange={(event) => setVoiceLanguage(event.target.value)}
+                >
+                  <option value="en-IN">English (India)</option>
+                  <option value="hi-IN">Hindi</option>
+                </select>
+                {voiceError && <p className="assistant-error" role="alert">{voiceError}</p>}
               </div>
               <div className="assistant-controls">
                 <label>
