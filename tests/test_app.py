@@ -863,6 +863,60 @@ class ApiRouteTests(unittest.TestCase):
             404,
         )
 
+    def test_playlist_owner_can_change_or_remove_collaborator_roles(self):
+        owner = mood_app.app.test_client()
+        owner.post(
+            "/api/auth/register",
+            json={
+                "name": "Mix Owner",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        playlist_id = owner.post(
+            "/api/v1/playlists", json={"name": "Team playlist"}
+        ).json["playlist"]["id"]
+        invite = owner.post(
+            f"/api/v1/playlists/{playlist_id}/invites",
+            json={"role": "editor"},
+        )
+        token = invite.json["invite_url"].split("invite_token=", 1)[1]
+
+        collaborator = mood_app.app.test_client()
+        collaborator.post(
+            "/api/auth/register",
+            json={
+                "name": "Team Editor",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        collaborator.post(
+            f"/api/v1/playlists/{playlist_id}/invites/accept",
+            json={"token": token},
+        )
+        collaborator_id = collaborator.get("/api/auth/session").json["user"]["id"]
+
+        updated = owner.put(
+            f"/api/v1/playlists/{playlist_id}/collaborators/{collaborator_id}",
+            json={"role": "viewer"},
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json["role"], "viewer")
+        self.assertEqual(
+            collaborator.get(f"/api/v1/playlists/{playlist_id}").json["playlist"]["role"],
+            "viewer",
+        )
+
+        removed = owner.delete(
+            f"/api/v1/playlists/{playlist_id}/collaborators/{collaborator_id}"
+        )
+        self.assertEqual(removed.status_code, 200)
+        self.assertEqual(
+            collaborator.get(f"/api/v1/playlists/{playlist_id}").status_code,
+            404,
+        )
+
     def test_viewer_playlist_invite_does_not_grant_edit_access(self):
         owner = mood_app.app.test_client()
         owner.post(

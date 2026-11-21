@@ -32,6 +32,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
   const [targetMood, setTargetMood] = useState("relaxed");
   const [isPublicPlaylist, setIsPublicPlaylist] = useState(false);
   const [refinePlaylistId, setRefinePlaylistId] = useState("");
+  const [collaboratorsByPlaylist, setCollaboratorsByPlaylist] = useState({});
   const [refineInstruction, setRefineInstruction] = useState("");
   const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
   const [isListening, setIsListening] = useState(false);
@@ -189,6 +190,42 @@ function AssistantPage({ user, theme, toggleTheme }) {
             : "No new catalogue tracks matched that instruction. Try a mood, language, genre, or artist.",
         );
       }
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function loadCollaborators(playlist) {
+    setError("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${playlist.id}/collaborators`);
+      setCollaboratorsByPlaylist((current) => ({ ...current, [playlist.id]: result.collaborators || [] }));
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function updateCollaboratorRole(playlist, collaborator, role) {
+    try {
+      await requestJson(`/api/v1/playlists/${playlist.id}/collaborators/${collaborator.user_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      await loadCollaborators(playlist);
+      setActionStatus(`${collaborator.name}'s access is now ${role}.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function removeCollaborator(playlist, collaborator) {
+    try {
+      await requestJson(`/api/v1/playlists/${playlist.id}/collaborators/${collaborator.user_id}`, {
+        method: "DELETE",
+      });
+      await loadCollaborators(playlist);
+      setActionStatus(`${collaborator.name} no longer has access to this playlist.`);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -524,12 +561,36 @@ function AssistantPage({ user, theme, toggleTheme }) {
                           <button type="button" onClick={() => createCollaboratorInvite(playlist)}>
                             Invite editor
                           </button>
+                          <button type="button" onClick={() => loadCollaborators(playlist)}>
+                            Manage collaborators
+                          </button>
                           <button type="button" onClick={() => togglePlaylistSharing(playlist)}>
                             {playlist.is_public ? "Copy public link / Make private" : "Make public"}
                           </button>
                         </>
                       )}
                     </div>
+                  </div>
+                ))}
+                {playlists.filter((playlist) => playlist.is_owner && collaboratorsByPlaylist[playlist.id]).map((playlist) => (
+                  <div className="assistant-collaborator-list" key={`collaborators-${playlist.id}`}>
+                    <h3>People editing {playlist.name}</h3>
+                    {collaboratorsByPlaylist[playlist.id].length ? collaboratorsByPlaylist[playlist.id].map((collaborator) => (
+                      <div className="assistant-playlist-row" key={collaborator.user_id}>
+                        <span>{collaborator.name}</span>
+                        <select
+                          aria-label={`Role for ${collaborator.name}`}
+                          value={collaborator.role}
+                          onChange={(event) => updateCollaboratorRole(playlist, collaborator, event.target.value)}
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="editor">Editor</option>
+                        </select>
+                        <button type="button" onClick={() => removeCollaborator(playlist, collaborator)}>
+                          Remove access
+                        </button>
+                      </div>
+                    )) : <p>No collaborators have joined yet.</p>}
                   </div>
                 ))}
                 <form className="assistant-refine-playlist" onSubmit={refinePlaylist}>

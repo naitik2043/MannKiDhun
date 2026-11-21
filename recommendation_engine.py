@@ -979,6 +979,42 @@ def get_playlist_collaborators(database_path, owner_id, playlist_id):
     ]
 
 
+def update_playlist_collaborator(database_path, owner_id, playlist_id, collaborator_user_id, role):
+    if role not in {"viewer", "editor"}:
+        raise ValueError("Collaborator role must be viewer or editor.")
+    with closing(_connect_database(database_path)) as connection, connection:
+        owner = connection.execute(
+            "SELECT 1 FROM playlists WHERE id = ? AND user_id = ?",
+            (playlist_id, owner_id),
+        ).fetchone()
+        if owner is None:
+            return False
+        cursor = connection.execute(
+            """
+            UPDATE playlist_collaborators
+            SET role = ?
+            WHERE playlist_id = ? AND user_id = ?
+            """,
+            (role, playlist_id, collaborator_user_id),
+        )
+    return cursor.rowcount > 0
+
+
+def remove_playlist_collaborator(database_path, owner_id, playlist_id, collaborator_user_id):
+    with closing(_connect_database(database_path)) as connection, connection:
+        owner = connection.execute(
+            "SELECT 1 FROM playlists WHERE id = ? AND user_id = ?",
+            (playlist_id, owner_id),
+        ).fetchone()
+        if owner is None:
+            return False
+        cursor = connection.execute(
+            "DELETE FROM playlist_collaborators WHERE playlist_id = ? AND user_id = ?",
+            (playlist_id, collaborator_user_id),
+        )
+    return cursor.rowcount > 0
+
+
 def can_edit_playlist(database_path, user_id, playlist_id):
     if user_id is None:
         return False

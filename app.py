@@ -36,6 +36,8 @@ from recommendation_engine import (
     create_playlist_invite,
     get_playlist_collaborators,
     revoke_playlist_invites,
+    remove_playlist_collaborator,
+    update_playlist_collaborator,
     clear_listening_history,
     clear_playback_state,
     create_music_catalogue,
@@ -1801,6 +1803,37 @@ def playlist_invite_accept(playlist_id):
     if playlist is None:
         return jsonify({"error": "This invitation is invalid, expired, or revoked."}), 404
     return jsonify({"playlist": playlist})
+
+
+@app.route(
+    "/api/v1/playlists/<int:playlist_id>/collaborators/<int:collaborator_user_id>",
+    methods=["PUT", "DELETE"],
+)
+def playlist_collaborator_detail(playlist_id, collaborator_user_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to manage collaborators."}), 401
+    if request.method == "DELETE":
+        removed = remove_playlist_collaborator(
+            str(AUTH_DATABASE), user["id"], playlist_id, collaborator_user_id
+        )
+        if not removed:
+            return jsonify({"error": "Collaborator not found or you are not the owner."}), 404
+        return jsonify({"removed": True, "user_id": collaborator_user_id})
+
+    payload = request.get_json(silent=True)
+    role = payload.get("role") if isinstance(payload, dict) else None
+    if role not in {"viewer", "editor"}:
+        return jsonify({"error": "Role must be viewer or editor."}), 400
+    try:
+        updated = update_playlist_collaborator(
+            str(AUTH_DATABASE), user["id"], playlist_id, collaborator_user_id, role
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+    if not updated:
+        return jsonify({"error": "Collaborator not found or you are not the owner."}), 404
+    return jsonify({"user_id": collaborator_user_id, "role": role})
 
 
 @app.route("/api/v1/playlists/<int:playlist_id>/invites", methods=["DELETE"])
