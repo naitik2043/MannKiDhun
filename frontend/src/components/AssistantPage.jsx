@@ -37,6 +37,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
   const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [sessionTracks, setSessionTracks] = useState([]);
+  const [sessionIndex, setSessionIndex] = useState(-1);
   const recognitionRef = useRef(null);
 
   useEffect(() => {
@@ -61,8 +64,10 @@ function AssistantPage({ user, theme, toggleTheme }) {
           if (active) {
             setActionStatus(`You joined ${inviteResult.playlist.name} as a ${inviteResult.playlist.role}.`);
           }
+          window.sessionStorage.removeItem("mannkidhun_pending_playlist_invite");
           window.history.replaceState({}, document.title, window.location.pathname);
         } catch (inviteError) {
+          window.sessionStorage.removeItem("mannkidhun_pending_playlist_invite");
           if (active) setError(inviteError.message || "This playlist invitation could not be accepted.");
         }
       }
@@ -85,6 +90,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
 
   useEffect(() => () => {
     if (recognitionRef.current) recognitionRef.current.stop();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
 
   async function ask(prompt = message) {
@@ -147,15 +153,18 @@ function AssistantPage({ user, theme, toggleTheme }) {
           limit: 8,
         }),
       });
+      const tracks = Array.isArray(result.recommendations) ? result.recommendations : [];
+      setSessionTracks(tracks);
+      setSessionIndex(-1);
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
           text: result.message || "Your adaptive listening session is ready.",
-          recommendations: result.recommendations || [],
+          recommendations: tracks,
         },
       ]);
-      setActionStatus("Your adaptive session is saved to your listening queue.");
+      setActionStatus("Your adaptive session is saved to your listening queue. Start it when you're ready.");
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -276,6 +285,49 @@ function AssistantPage({ user, theme, toggleTheme }) {
     } catch (requestError) {
       setError(requestError.message);
     }
+  }
+
+  async function playSessionTrack(index) {
+    if (index < 0 || index >= sessionTracks.length) return;
+    const song = sessionTracks[index];
+    setSessionIndex(index);
+    playSong(song);
+    try {
+      const { state } = await requestJson("/api/v1/users/me/playback-state");
+      await requestJson("/api/v1/users/me/playback-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...state,
+          current_song_id: song.id,
+          position_ms: 0,
+          queue: sessionTracks.map((track) => track.id),
+        }),
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  function speakMessage(text) {
+    if (!text || !("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance !== "function") {
+      setVoiceError("Spoken responses are not supported in this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    utterance.lang = voiceLanguage;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setVoiceError("");
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function stopSpeaking() {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setIsSpeaking(false);
   }
 
   function startVoiceInput() {
@@ -632,11 +684,49 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 />
               </div>
             )}
+            {sessionTracks.length > 0 && (
+              <div className="assistant-session-player" aria-label="Adaptive listening session">
+                <div>
+                  <strong>Adaptive session · {sessionTracks.length} tracks</strong>
+                  <span>
+                    {sessionIndex >= 0
+                      ? `Now on ${sessionIndex + 1} of ${sessionTracks.length}: ${sessionTracks[sessionIndex].title}`
+                      : "Your queue is ready. Start the first track when you want."}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => playSessionTrack(0)}>Start session</button>
+                  <button
+                    type="button"
+                    onClick={() => playSessionTrack(sessionIndex - 1)}
+                    disabled={sessionIndex <= 0}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => playSessionTrack(sessionIndex + 1)}
+                    disabled={sessionIndex < 0 || sessionIndex >= sessionTracks.length - 1}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="assistant-messages" aria-live="polite">
               {messages.map((entry, index) => (
                 <article className={`assistant-message assistant-message-${entry.role}`} key={`${entry.role}-${index}`}>
                   <p>{entry.text}</p>
+                  {entry.role === "assistant" && (
+                    <button
+                      type="button"
+                      className="assistant-read-aloud"
+                      onClick={() => speakMessage(entry.text)}
+                    >
+                      Read aloud
+                    </button>
+                  )}
                   {entry.recommendations?.length > 0 && (
                     <div className="assistant-track-list">
                       {entry.recommendations.map((song) => (
@@ -757,6 +847,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
                   <option value="hi-IN">Hindi</option>
                 </select>
                 {voiceError && <p className="assistant-error" role="alert">{voiceError}</p>}
+                {isSpeaking && (
+                  <button type="button" onClick={stopSpeaking}>Stop spoken response</button>
+                )}
               </div>
               <div className="assistant-controls">
                 <label>

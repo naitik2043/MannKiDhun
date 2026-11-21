@@ -141,6 +141,30 @@ function App() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const { theme, toggleTheme } = useTheme();
 
+  if (path === "/assistant") {
+    const inviteParams = new URLSearchParams(window.location.search);
+    const invitePlaylist = inviteParams.get("invite_playlist");
+    const inviteToken = inviteParams.get("invite_token");
+    if (invitePlaylist && inviteToken) {
+      window.sessionStorage.setItem(
+        "mannkidhun_pending_playlist_invite",
+        window.location.search,
+      );
+    }
+  }
+
+  useEffect(() => {
+    const pendingInvite = window.sessionStorage.getItem("mannkidhun_pending_playlist_invite");
+    if (
+      pendingInvite &&
+      path !== "/assistant" &&
+      path !== "/signin" &&
+      path !== "/signup"
+    ) {
+      window.location.replace("/assistant" + pendingInvite);
+    }
+  }, [path]);
+
   if (path === "/community") {
     return <CommunityPage theme={theme} toggleTheme={toggleTheme} />;
   }
