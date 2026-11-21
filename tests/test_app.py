@@ -193,6 +193,30 @@ class ApiRouteTests(unittest.TestCase):
                 response.close()
         self.assertEqual(client.get("/unknown-page").status_code, 404)
 
+    def test_api_http_errors_use_json_responses(self):
+        response = mood_app.app.test_client().get("/api/v1/this-route-does-not-exist")
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(response.is_json)
+        self.assertIn("error", response.json)
+
+    def test_unexpected_api_errors_are_logged_but_not_exposed_to_clients(self):
+        with patch.object(
+            mood_app,
+            "get_user_recommendations",
+            side_effect=RuntimeError("sensitive internal diagnostic"),
+        ):
+            response = mood_app.app.test_client().get(
+                "/api/v1/recommendations/similar/1"
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertTrue(response.is_json)
+        self.assertEqual(
+            response.json["error"],
+            "An unexpected server error occurred. Please try again.",
+        )
+        self.assertNotIn("sensitive internal diagnostic", response.get_data(as_text=True))
+
     def test_recommendation_generation_rejects_non_object_json(self):
         client = mood_app.app.test_client()
         for body in (b"{", b"[]", b"null"):

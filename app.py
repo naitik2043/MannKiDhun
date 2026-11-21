@@ -11,7 +11,7 @@ import threading
 import time
 import uuid
 from urllib.parse import urlsplit
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,6 +20,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 from flask import Flask, abort, jsonify, request, send_from_directory, session
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database_migrations import run_migrations
@@ -113,8 +114,10 @@ app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
 LOGIN_ATTEMPT_LIMIT = 5
 LOGIN_ATTEMPT_WINDOW_SECONDS = 15 * 60
+# Keep attacker-controlled identifier/IP combinations from growing without bound.
+LOGIN_ATTEMPT_MAX_KEYS = 10_000
 login_attempt_lock = threading.Lock()
-login_attempts = defaultdict(deque)
+login_attempts = OrderedDict()
 
 
 @app.before_request
@@ -171,11 +174,31 @@ def _prune_login_attempts(attempts, now):
         attempts.popleft()
 
 
+def _prune_login_attempt_registry(now):
+    """Remove expired least-recently-used keys before adding another attempt.
+
+    The registry is ordered by access. Once its oldest key still has a live
+    attempt, every later key was touched more recently and can be left alone.
+    """
+    while login_attempts:
+        _, oldest_attempts = next(iter(login_attempts.items()))
+        _prune_login_attempts(oldest_attempts, now)
+        if oldest_attempts:
+            break
+        login_attempts.popitem(last=False)
+
+
 def _login_retry_after(key):
     now = time.monotonic()
     with login_attempt_lock:
-        attempts = login_attempts[key]
+        attempts = login_attempts.get(key)
+        if attempts is None:
+            return 0
         _prune_login_attempts(attempts, now)
+        if not attempts:
+            login_attempts.pop(key, None)
+            return 0
+        login_attempts.move_to_end(key)
         if len(attempts) < LOGIN_ATTEMPT_LIMIT:
             return 0
         return max(1, int(LOGIN_ATTEMPT_WINDOW_SECONDS - (now - attempts[0])) + 1)
@@ -184,9 +207,18 @@ def _login_retry_after(key):
 def _record_failed_login(key):
     now = time.monotonic()
     with login_attempt_lock:
-        attempts = login_attempts[key]
-        _prune_login_attempts(attempts, now)
+        _prune_login_attempt_registry(now)
+        attempts = login_attempts.get(key)
+        if attempts is None:
+            attempts = deque()
+        else:
+            _prune_login_attempts(attempts, now)
         attempts.append(now)
+        login_attempts[key] = attempts
+        login_attempts.move_to_end(key)
+
+        while len(login_attempts) > LOGIN_ATTEMPT_MAX_KEYS:
+            login_attempts.popitem(last=False)
 
 
 def _clear_login_attempts(key):
@@ -230,7 +262,10 @@ holistic = None
 face_detector = None
 inference_lock = threading.Lock()
 assistant_rate_lock = threading.Lock()
-assistant_requests = defaultdict(deque)
+ASSISTANT_RATE_LIMIT = 12
+ASSISTANT_RATE_LIMIT_WINDOW_SECONDS = 60
+ASSISTANT_RATE_LIMIT_MAX_KEYS = 10_000
+assistant_requests = OrderedDict()
 
 
 class LazyEmotionModel:
@@ -1556,6 +1591,30 @@ def popular_artists():
     return jsonify({"artists": [{"id": row[0], "name": row[1]} for row in rows]})
 
 
+def _is_api_request():
+    return request.path.startswith("/api/") or request.path == "/predict"
+
+
+@app.errorhandler(HTTPException)
+def handle_http_exception(error):
+    """Keep HTTP errors JSON-shaped for API callers without changing page errors."""
+    if _is_api_request():
+        return jsonify({"error": error.description or error.name}), error.code
+    return error
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_exception(error):
+    """Log server-side details while returning a safe response to API clients."""
+    if isinstance(error, HTTPException):
+        return handle_http_exception(error)
+
+    app.logger.exception("Unhandled application error for %s", request.path)
+    if _is_api_request():
+        return jsonify({"error": "An unexpected server error occurred. Please try again."}), 500
+    return "Internal Server Error", 500
+
+
 @app.errorhandler(413)
 def request_too_large(_error):
     return jsonify({"error": "The uploaded image is too large."}), 413
@@ -1684,15 +1743,40 @@ def recommendations_index():
     })
 
 
+def _prune_assistant_requests(requests, now):
+    while requests and now - requests[0] >= ASSISTANT_RATE_LIMIT_WINDOW_SECONDS:
+        requests.popleft()
+
+
+def _prune_assistant_request_registry(now):
+    """Drop expired least-recently-used account buckets."""
+    while assistant_requests:
+        _, oldest_requests = next(iter(assistant_requests.items()))
+        _prune_assistant_requests(oldest_requests, now)
+        if oldest_requests:
+            break
+        assistant_requests.popitem(last=False)
+
+
 def _assistant_rate_limited(user_id):
     now = time.monotonic()
     with assistant_rate_lock:
-        requests = assistant_requests[user_id]
-        while requests and now - requests[0] >= 60:
-            requests.popleft()
-        if len(requests) >= 12:
+        _prune_assistant_request_registry(now)
+        requests = assistant_requests.get(user_id)
+        if requests is None:
+            requests = deque()
+        else:
+            _prune_assistant_requests(requests, now)
+
+        if len(requests) >= ASSISTANT_RATE_LIMIT:
+            assistant_requests.move_to_end(user_id)
             return True
+
         requests.append(now)
+        assistant_requests[user_id] = requests
+        assistant_requests.move_to_end(user_id)
+        while len(assistant_requests) > ASSISTANT_RATE_LIMIT_MAX_KEYS:
+            assistant_requests.popitem(last=False)
         return False
 
 

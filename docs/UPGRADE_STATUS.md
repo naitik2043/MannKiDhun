@@ -19,7 +19,7 @@ This audit maps the 17 requested upgrades to the current main branch. "Implement
 | 13 | India-First Discovery | **Partial** | The starter catalogue contains nine language groups, and local intent parsing now handles common Roman Hinglish and selected native scripts. Catalogue depth and verified coverage still need substantial expansion. |
 | 14 | Conversational AI Companion | **Partial** | The Assistant supports text, browser dictation, contextual follow-ups, and an optional structured-intent provider. It is a catalogue-grounded discovery assistant, not a general autonomous conversational agent. |
 | 15 | Social & Collaborative Discovery | **Partial, with group listening rooms** | Playlist owners can create six-hour bearer-link rooms; signed-in participants join, see recent presence, and exchange playlist-scoped playback state with optimistic version checks and periodic polling. WebSocket presence, chat, and sample-accurate sync are not implemented. |
-| 16 | Engineering, Security & Reliability | **Partial** | CI tests/build, CodeQL static analysis, input validation, security headers, browser-origin allowlisting, synchronizer-token CSRF for browser mutations, process-local failed-login throttling, versioned SQLite migrations, and integrity-checked manual backup / restore tools exist. Shared rate limiting, managed durable storage, scheduled off-site backups, recovery email, dependency auditing, and production monitoring remain. |
+| 16 | Engineering, Security & Reliability | **Partial** | CI tests/build, CodeQL static analysis, input validation, security headers, browser-origin allowlisting, synchronizer-token CSRF for browser mutations, memory-bounded, process-local login and assistant throttling, versioned SQLite migrations, and integrity-checked manual backup / restore tools exist. Shared rate limiting, managed durable storage, scheduled off-site backups, recovery email, dependency auditing, and production monitoring remain. |
 | 17 | Complete Product, UI & Documentation | **Partial, with product-wide playback** | A shared app-level player, internal route navigation, group-room UI, and updated README / architecture / API / deployment / database / security docs are present. A full accessibility audit, native clients, broad device testing, and advanced queue capabilities remain. |
 
 ## Important scope notes
@@ -28,7 +28,7 @@ This audit maps the 17 requested upgrades to the current main branch. "Implement
 - The Render Blueprint currently uses the Free plan. Its filesystem is ephemeral; MANNKIDHUN_DATA_DIR only becomes durable when it points to a supported mounted persistent disk.
 - Context matching is a transparent catalogue-tag heuristic, not an audio feature model or a wearable integration.
 - Facial-expression class scores are not calibrated probabilities. Frame consistency must not be marketed as model accuracy or a measure of someone's actual feelings.
-- The process-local security rate limits are a first guard for the current single-process demo. They must move to shared storage before multi-worker / multi-instance production use.
+- The security rate limits remain process-local and are a first guard for the current single-process demo. Failed-login keys are memory-bounded, but all rate limits must move to shared storage before multi-worker / multi-instance production use.
 
 ## Recommended next priorities
 
