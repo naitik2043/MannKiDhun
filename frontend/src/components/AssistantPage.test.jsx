@@ -101,7 +101,7 @@ describe("AssistantPage", () => {
     fireEvent.change(screen.getByLabelText("Create a playlist"), {
       target: { value: "Evening Mix" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.submit(document.getElementById("assistant-playlists"));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("created"));
     fireEvent.change(screen.getByRole("combobox", { name: "New collaborator role" }), {
       target: { value: "editor" },
