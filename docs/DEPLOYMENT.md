@@ -29,7 +29,7 @@ GitHub Actions builds the frontend and runs both backend and frontend test suite
 
 The bundled expression model is loaded during inference and requires substantial memory. If Render terminates the service during startup or health checks, inspect service logs and consider a larger instance.
 
-PostgreSQL support, email delivery, automated backups, and a versioned migration framework are not included. \`python app.py\` starts Flask's development server and is for local development / smoke testing only.
+PostgreSQL support, email delivery, scheduled backups, and automatic off-site retention are not included. Versioned SQLite migrations and manual integrity-checked backup / restore utilities are included. `python app.py` starts Flask's development server and is for local development / smoke testing only.
 
 ## Local build and run
 

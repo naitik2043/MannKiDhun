@@ -2321,38 +2321,58 @@ def adaptive_session_feedback():
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return jsonify({"error": "Provide session feedback in JSON format."}), 400
+
     try:
         song_id = int(payload.get("song_id"))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return jsonify({"error": "Provide a valid track id."}), 400
+    if song_id <= 0:
+        return jsonify({"error": "Provide a valid track id."}), 400
+
     event_type = payload.get("event_type")
-    if event_type not in {"like", "skip"}:
+    if not isinstance(event_type, str) or event_type not in {"like", "skip"}:
         return jsonify({"error": "Session feedback must be like or skip."}), 400
+
     queue = payload.get("queue", [])
     played_ids = payload.get("played_ids", [])
-    if not isinstance(queue, list) or len(queue) > 50 or not isinstance(played_ids, list) or len(played_ids) > 50:
+    if (
+        not isinstance(queue, list) or len(queue) > 50
+        or not isinstance(played_ids, list) or len(played_ids) > 50
+    ):
         return jsonify({"error": "Session track lists must be arrays of up to 50 ids."}), 400
     try:
-        queue_ids = [int(item.get("id") if isinstance(item, dict) else item) for item in queue]
+        queue_ids = [
+            int(item.get("id") if isinstance(item, dict) else item)
+            for item in queue
+        ]
         played = {int(item) for item in played_ids}
-    except (TypeError, ValueError):
-        return jsonify({"error": "Session track ids must be valid integers."}), 400
+        position_ms = int(payload.get("position_ms", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        return jsonify({"error": "Track ids and playback position must be integers."}), 400
+    if position_ms < 0 or len(set(queue_ids)) != len(queue_ids):
+        return jsonify({"error": "The session queue or playback position is invalid."}), 400
     if song_id not in queue_ids:
         return jsonify({"error": "That track is not part of the active session."}), 409
+
     mood = payload.get("mood", "neutral")
     mode = payload.get("mode", "match")
     context = payload.get("context")
     use_preferences = payload.get("use_preferences", True)
+    use_history = payload.get("use_history", False)
     if not isinstance(mood, str) or mood.strip().lower() not in MOOD_AFFECT_MAP:
         return jsonify({"error": "Choose a supported session mood."}), 400
-    if mode not in {"match", "change", "explore"}:
+    mood = mood.strip().lower()
+    if not isinstance(mode, str) or mode not in {"match", "change", "explore"}:
         return jsonify({"error": "Choose Match, Change, or Explore mode."}), 400
-    if type(use_preferences) is not bool:
-        return jsonify({"error": "Personalisation choice must be true or false."}), 400
+    if type(use_preferences) is not bool or type(use_history) is not bool:
+        return jsonify({"error": "Personalisation choices must be true or false."}), 400
     if context == "":
         context = None
-    if context is not None and context not in ALLOWED_LISTENING_CONTEXTS:
-        return jsonify({"error": "Choose a supported listening context."}), 400
+    if context is not None:
+        if not isinstance(context, str) or context.strip().lower() not in ALLOWED_LISTENING_CONTEXTS:
+            return jsonify({"error": "Choose a supported listening context."}), 400
+        context = context.strip().lower()
+
     if not record_user_interaction(
         str(AUTH_DATABASE), user["id"], song_id, event_type, source="adaptive-session"
     ):
@@ -2371,11 +2391,15 @@ def adaptive_session_feedback():
         vibe="neutral" if mode == "explore" else mood,
         limit=12,
         include_preferences=use_preferences,
-        include_history=True,
+        include_history=use_history,
         context=context,
         exclude_song_ids=excluded_ids,
     )
-    by_id = {int(item["id"]): item for item in recommendations if item.get("id") is not None}
+    by_id = {
+        int(item["id"]): item
+        for item in recommendations
+        if item.get("id") is not None
+    }
     refreshed = [by_id[item] for item in remaining_ids if item in by_id]
     used = {int(item["id"]) for item in refreshed}
     refreshed.extend(
@@ -2388,7 +2412,7 @@ def adaptive_session_feedback():
         user["id"],
         {
             "current_song_id": song_id,
-            "position_ms": max(0, int(payload.get("position_ms", 0) or 0)),
+            "position_ms": position_ms,
             "queue": [song_id] + [int(item["id"]) for item in refreshed],
             "shuffle": False,
             "repeat_mode": "off",
@@ -2401,7 +2425,6 @@ def adaptive_session_feedback():
         "state": state,
         "message": "Your remaining queue was refreshed using your latest feedback.",
     })
-
 
 @app.route("/api/v1/playlists/<int:playlist_id>/refine", methods=["POST"])
 def refine_playlist(playlist_id):

@@ -13,18 +13,30 @@ The application uses a single SQLite file at `<MANNKIDHUN_DATA_DIR>/moodwave.sql
 - `playlists`, `playlist_tracks`: user-owned playlists and ordered catalogue entries.
 - `playlist_collaborators`: user membership with viewer/editor role, unique per playlist/user.
 - `playlist_invites`: hashed bearer invitation tokens with role, expiry, and revocation timestamps; raw tokens are returned only at creation time.
-- `playback_states`: one current playback/queue snapshot per user. Adaptive sessions write recommendation IDs here; no audio stream or live player position is managed by this table.
+- `playback_states`: one current playback / queue snapshot per user. The global player writes the current track, elapsed position, queue IDs, and repeat mode.
+- `listening_rooms`, `listening_room_participants`: six-hour invite-only group rooms, hashed bearer tokens, shared playlist state, optimistic version, and recent participant presence.
+- `schema_migrations`: ordered migration versions and timestamps; migration 1 creates the group listening room tables.
 
-Account-owned data references `users` with `ON DELETE CASCADE`. Track and playlist relations also declare foreign keys. Every application SQLite connection now enables foreign-key enforcement, so those constraints and cascades apply during normal requests as well as schema setup. Catalogue schema creation and the existing additive column checks are performed by Python initialization code; there is no versioned migration framework or rollback command.
+Account-owned data references `users` with `ON DELETE CASCADE`. Track and playlist relations also declare foreign keys. Every application SQLite connection enables foreign-key enforcement. `database_migrations.py` applies ordered, idempotent migrations at startup and records each applied version in `schema_migrations`; migration 1 creates group-room tables. Migrations do not yet provide rollback, so make a backup before applying schema changes.
 
 The current SQLite-oriented implementation is not verified for PostgreSQL. Do not point `DATABASE_URL` at PostgreSQL; the active app uses `AUTH_DATABASE` and SQLite paths. A mounted Render disk can provide persistence for a single service instance, but it does not replace a managed database or make multi-instance SQLite safe.
 
-## Backup and restore
+## Backup, verification, and restore
 
-Stop application writers or use SQLite's online backup API to create a consistent backup. For example:
+The repository includes `database_ops.py`, which uses SQLite's online backup API and verifies database integrity plus foreign-key consistency.
+
+From the repository root:
 
 ```powershell
-python -c "import os, sqlite3; from pathlib import Path; root=Path(os.environ.get('MANNKIDHUN_DATA_DIR') or 'instance'); source=sqlite3.connect(root / 'moodwave.sqlite3'); target=sqlite3.connect(root / 'moodwave.backup.sqlite3'); source.backup(target); target.close(); source.close()"
+# Verify the active database.
+python database_ops.py verify
+
+# Create and verify a consistent online backup.
+python database_ops.py backup --output backups\moodwave-backup.sqlite3
+
+# Restore a verified backup. --overwrite first preserves the current DB
+# in a timestamped .pre-restore safety copy.
+python database_ops.py restore --source backups\moodwave-backup.sqlite3 --overwrite
 ```
 
-To restore, stop the application, preserve a separate copy of the current database, then replace the database file with a verified backup. Start the app and check `/healthz` and account/library reads. This is a manual procedure; automated backups and restore drills are not configured.
+Pass `--database <path>` to manage a non-default database. The default path follows `MANNKIDHUN_DATA_DIR` or `instance/moodwave.sqlite3`. Stop application writers before restoring. These are manual utilities; they do not schedule off-site backups, encrypt backup files, or replace a regular restore drill.

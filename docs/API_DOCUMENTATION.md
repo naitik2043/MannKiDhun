@@ -36,7 +36,8 @@ Sign-in throttling returns HTTP 429 with a `Retry-After` header after repeated f
 | POST | `/api/v1/users/me/music-dna/consent` | Enable or disable Music DNA activity summaries. |
 | GET/POST | `/api/v1/users/me/mood-journal` | List recent private journal entries or add a manual mood note. |
 | DELETE | `/api/v1/users/me/mood-journal/{entry_id}` | Delete one of the current user's journal entries. |
-| POST | `/api/v1/users/me/adaptive-session` | Build a recommendation queue and save it to playback state. |
+| POST | `/api/v1/users/me/adaptive-session` | Build a Match / Change / Explore queue; Change accepts a starting `source_mood` and target `mood`. |
+| POST | `/api/v1/users/me/adaptive-session/feedback` | Save Like / Not for me feedback and refresh the remaining active queue; history-derived signals require `use_history: true`. |
 | GET/POST | `/api/v1/playlists` | List/create playlists owned by the current user. |
 | POST | `/api/v1/playlists/{playlist_id}/refine` | Add matching catalogue tracks, remove a named/last track, or reorder a named track. |
 | POST | `/api/v1/playlists/{playlist_id}/invites` | Create a seven-day editor/viewer invitation link (owner only). |
@@ -51,6 +52,10 @@ Sign-in throttling returns HTTP 429 with a `Retry-After` header after repeated f
 | DELETE | `/api/v1/playlists/{playlist_id}/tracks/{song_id}` | Remove a track from an owned playlist. |
 | POST | `/api/v1/playlists/{playlist_id}/reorder` | Reorder an owned playlist's tracks. |
 | GET/POST/DELETE | `/api/v1/users/me/playback-state` | Read/save/clear the current user's playback state. |
+| POST | `/api/v1/playlists/{playlist_id}/listening-room` | Owner-only: create a six-hour group listening room and return a bearer invitation link. |
+| POST | `/api/v1/listening-rooms/{token}/join` | Join a room while signed in with a valid bearer invitation. |
+| GET/DELETE | `/api/v1/listening-rooms/{token}` | Read room state / recent participants, or close the room as its owner. |
+| PUT | `/api/v1/listening-rooms/{token}/state` | Update playlist-scoped playback state using optimistic `expected_version` checks. |
 | GET | `/healthz` | Return `{"status":"ok"}` when the application database responds; otherwise 503. |
 
 ### Assistant request
@@ -88,7 +93,9 @@ The same listening-history endpoint accepts feedback events such as `like` and `
 
 ### Adaptive sessions
 
-`POST /api/v1/users/me/adaptive-session` accepts `mode` (`match`, `change`, or `explore`), optional `mood`, `context` (`studying`, `travelling`, `evening`, `workout`, or `sleep`), `use_preferences`, `use_history`, and `limit` (3–12). It returns the recommendations and persists their track IDs to the user's playback-state queue. History is not used unless `use_history: true` is explicitly supplied.
+`POST /api/v1/users/me/adaptive-session` accepts `mode` (`match`, `change`, or `explore`), optional `mood`, `source_mood` (required for Change), `context` (`studying`, `travelling`, `evening`, `workout`, or `sleep`), `use_preferences`, `use_history`, and `limit` (3–12). Change creates a source / bridge / target queue using catalogue mood coordinates; it is a ranking heuristic, not a validated psychological transition. The endpoint persists queue IDs to the user's playback-state queue. History is not used unless `use_history: true` is explicitly supplied.
+
+`POST /api/v1/users/me/adaptive-session/feedback` accepts `song_id`, `event_type` (`like` or `skip`), the current `queue`, optional `played_ids`, `mode`, `mood`, optional `context`, `use_preferences`, `use_history`, and `position_ms`. The feedback event is recorded for the signed-in account; the remaining queue is re-ranked without the current / already-played tracks and saved back to playback state. Positive / negative history-derived signals are used only when `use_history: true`.
 
 ### Mood journal
 
@@ -113,10 +120,14 @@ Music DNA is disabled by default. Send `POST /api/v1/users/me/music-dna/consent`
 
 Playlist invite creation returns a bearer URL with a seven-day expiry. The owner chooses `editor` or `viewer`. Editors may add, remove, and reorder tracks; viewers can read the private playlist while signed in but cannot change it. Owners can list collaborators, change a collaborator role, remove access, and revoke active invite links. A revoked/expired invite cannot be accepted; already accepted collaborator membership is managed separately by the owner.
 
-The natural-language refine endpoint supports commands such as `add peaceful music`, `remove last song`, `remove Agar Tum Saath Ho`, and `move Lover to the top`. Removal and reordering require an explicit track name or an unambiguous last-track instruction.
+The natural-language refine endpoint supports commands such as `add peaceful music`, `make this playlist calmer`, `more energetic`, `discover new artists`, `remove last song`, `remove Agar Tum Saath Ho`, and `move Lover to the top`. These phrases map to supported catalogue intent / ranking rules; they are not unrestricted natural-language playlist editing.
 
 ### Adaptive queue and voice
 
-The adaptive-session endpoint stores a queue snapshot in playback state. The assistant offers Start, Previous, and Next controls and saves the current track/queue. This is not a background player and does not automatically advance when an embed ends. Voice input and Read aloud use browser speech APIs; no speech audio is sent to the backend, and support varies by browser.
+The app-level player persists the local queue across internal route navigation, offers seek / Previous / Next / repeat controls, records play and completion events, and advances automatically on the YouTube IFrame Player API's ended event. It is still a third-party embed; provider availability, autoplay restrictions, and Media Session support vary by browser. Voice input and Read aloud use browser speech APIs; no speech audio is sent to the backend, and support varies by browser.
 
-Successful API responses contain JSON; error responses use an `error` field. Authentication failures return 401, invalid payloads 400, and assistant rate-limit responses 429.
+### Group listening rooms
+
+Playlist owners create a six-hour room with `POST /api/v1/playlists/{playlist_id}/listening-room`. The response returns a bearer token and invite URL; treat the URL like a password. A signed-in guest joins with `POST /api/v1/listening-rooms/{token}/join`. Joined participants can poll `GET /api/v1/listening-rooms/{token}` for recent presence / shared state and send playlist-scoped state with `PUT /api/v1/listening-rooms/{token}/state`, including the latest `expected_version`. Stale updates return 409. The room owner closes it with DELETE. The current UI polls roughly every three seconds and the host broadcasts roughly every five seconds; this is near-live polling, not WebSocket or sample-accurate audio synchronization.
+
+Successful API responses contain JSON; error responses use an `error` field. Authentication failures return 401, invalid payloads 400, and rate-limit responses 429.

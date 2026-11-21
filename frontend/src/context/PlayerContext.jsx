@@ -285,7 +285,7 @@ export function PlayerProvider({ children }) {
     return () => window.clearInterval(timer);
   }, [isPlaying]);
 
-  const playQueue = useCallback((tracks, startIndex = 0) => {
+  const playQueue = useCallback((tracks, startIndex = 0, autoplay = true) => {
     const normalized = Array.isArray(tracks)
       ? tracks.filter(isPlayableTrack).map(normalizeTrack).slice(0, 100)
       : [];
@@ -296,7 +296,7 @@ export function PlayerProvider({ children }) {
     const index = Math.max(0, Math.min(Number(startIndex) || 0, normalized.length - 1));
     queueRef.current = normalized;
     indexRef.current = index;
-    autoplayRef.current = true;
+    autoplayRef.current = Boolean(autoplay);
     lastRecordedTrackRef.current = null;
     lastLoadedTrackRef.current = null;
     setQueue(normalized);
@@ -317,7 +317,10 @@ export function PlayerProvider({ children }) {
       }
       return false;
     }
-    return playQueue([track], 0);
+    const upcoming = queueRef.current.filter(
+      (item) => String(item.id) !== String(track.id),
+    );
+    return playQueue([track, ...upcoming], 0);
   }, [playQueue]);
 
   const addToQueue = useCallback((track) => {

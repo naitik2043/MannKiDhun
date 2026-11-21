@@ -18,14 +18,16 @@ MannKiDhun is an open-source music discovery application built with **React, Vit
 | Capability | What it does |
 | --- | --- |
 | Mood check-in | Choose a vibe manually or opt into a five-frame facial-expression estimate. Camera estimates require explicit confirmation before a recommendation is shown; manual selection can correct the suggestion. |
-| Match / Change / Explore | Find music for a current mood, move toward a target mood, or browse beyond mood filters. |
+| Match / Change / Explore | Match a current mood, move through a three-stage Change journey (starting mood → heuristic bridge → target), or Explore beyond mood filters. |
 | Context-aware discovery | Select studying, travelling, evening, workout, or sleep. A transparent tag-affinity heuristic adjusts catalogue ranking. |
 | Explainable recommendations | See catalogue-backed reasons and respond with Like or Not for me feedback. |
 | Music Assistant | Search the local catalogue with text or browser speech dictation in Hindi / English (India). A confirmed check-in can prefill Match mode; local rules recognize common Roman Hinglish and selected native-script phrases. |
-| Adaptive sessions | Build a queue and save it to playback state. Tracks are advanced manually in the current version. |
+| Adaptive sessions | Build Match, Change, or Explore queues. Like / Not for me feedback can refresh the remaining session when you opt into history-based personalization. |
+| Global player | One app-level YouTube player follows internal navigation, persists its queue locally, supports seek / previous / next / repeat, and advances automatically when an embedded track ends. |
+| Group listening | Playlist owners can start six-hour invite-only rooms. Signed-in guests join with a bearer link; playlist playback state and recent participant presence sync through versioned polling. |
 | Personal Music DNA | Opt in to a private summary of recurring languages, genres, artists, listening styles, and vibes. Export or reset the profile. |
 | Mood & Music Journal | Write private mood notes and review recent patterns. Entries are manually created, never inferred from camera frames. |
-| Playlists & community | Create playlists, publish them optionally, discover public playlists, and invite viewers or editors. |
+| Playlists & community | Create playlists, publish them optionally, discover public playlists, invite viewers or editors, and start group listening rooms. |
 | Personal library | Save tracks, review listening history, and manage music preferences. |
 | Regional discovery | Starter catalogue includes Hindi, English, Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi tracks. |
 
@@ -57,7 +59,8 @@ This is a **curated metadata heuristic**, not an audio-understanding model. It d
 | Persistence | SQLite, with a configurable data directory |
 | Expression pipeline | MediaPipe Holistic, OpenCV, Keras / TensorFlow |
 | Testing | Python \`unittest\`, Vitest, Testing Library |
-| Deployment | Render Blueprint, GitHub Actions |
+| Player | YouTube IFrame Player API, browser Media Session API where supported |
+| Deployment | Render Blueprint, GitHub Actions, CodeQL |
 
 ## Run locally
 
@@ -163,6 +166,8 @@ SQLite database + profile uploads
 Key implementation files:
 
 - \`app.py\`: Flask application, authentication, account APIs, assistant endpoints, playlist routes, and health check.
+- \`database_migrations.py\`, \`database_ops.py\`: ordered SQLite schema migrations and integrity-checked online backup / restore utilities.
+- \`frontend/src/context/PlayerContext.jsx\`: app-level YouTube player, persistent local queue, playback controls, and Media Session integration.
 - \`recommendation_engine.py\`: catalogue setup, hybrid ranking, feedback scoring, saved songs, and playlist persistence.
 - \`music_assistant.py\`: rule-based intent parsing with an optional structured-intent provider.
 - \`model_loader.py\`, \`frame_validation.py\`, \`prediction_aggregation.py\`: model artifact checks, image-quality validation, and multi-frame estimate aggregation.
@@ -195,7 +200,7 @@ For a persistent single-instance SQLite deployment on Render:
 3. Set \`MANNKIDHUN_DATA_DIR=/var/data\` in the service environment.
 4. Deploy and verify \`/healthz\`, then make and test a database backup.
 
-The configurable data directory stores both \`moodwave.sqlite3\` and \`profile_uploads/\`. This is a deployment option, not an automatic upgrade of the Free Blueprint. For multi-instance or larger-scale production use, move to a managed database and object storage, add versioned migrations, and test backup / restore procedures before onboarding real users.
+The configurable data directory stores both \`moodwave.sqlite3\` and \`profile_uploads/\`. The app now applies versioned SQLite migrations at startup and includes integrity-checked manual backup / restore commands in [Database](docs/DATABASE.md). This is a deployment option, not an automatic upgrade of the Free Blueprint. For multi-instance or larger-scale production use, move to a managed database and object storage, schedule encrypted off-site backups, and rehearse restore procedures before onboarding real users.
 
 See [Deployment and operations](docs/DEPLOYMENT.md) and [Database](docs/DATABASE.md).
 
@@ -203,13 +208,13 @@ See [Deployment and operations](docs/DEPLOYMENT.md) and [Database](docs/DATABASE
 
 - The catalogue is a curated starter dataset, not a full music-licensing or streaming catalogue. Playback uses third-party embeds / links; MannKiDhun does not host or sublicense recordings.
 - Context matching currently uses manually curated tags. There is no validated audio-feature model for tempo, energy, valence, or era.
-- Adaptive sessions save a queue snapshot and currently require manual track advancement. There is not yet a persistent, site-wide player with automatic track-ended handling.
-- Playlist collaboration is role-based; real-time presence and concurrent-edit conflict resolution are not implemented.
+- The global player uses the YouTube IFrame API; availability, autoplay, and track embedding depend on provider and browser restrictions. Its queue survives internal route navigation and reloads, but continuous playback cannot survive a full browser refresh or external navigation.
+- Group listening rooms sync playlist playback state and recent presence through polling with optimistic version checks. They are not WebSocket-based and cannot guarantee sample-accurate audio synchronization.
 - Voice features depend on the browser's speech APIs and may not be available in every browser.
 - Kannada, Urdu, Sanskrit, and other regional-language catalogue coverage needs verified additions; language recognition in the assistant does not mean that tracks are already available.
 - Password-reset and verification email delivery are not configured.
 - Login and assistant rate limits are process-local, not distributed; the origin guard is defense in depth and is not a synchronizer-token CSRF implementation.
-- SQLite, process-local rate limiting, and the Free Render filesystem are not suitable for a durable multi-worker production service.
+- SQLite migrations and manual backup / restore tooling are included, but scheduled off-site backups and restore drills are not. Login and assistant limits remain process-local, and the Free Render filesystem is ephemeral; this is not a durable multi-worker production setup.
 
 ## Product and market research
 

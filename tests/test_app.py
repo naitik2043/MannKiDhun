@@ -957,6 +957,68 @@ class ApiRouteTests(unittest.TestCase):
         self.assertNotIn(queue[0], [item["id"] for item in response.json["remaining"]])
         self.assertTrue(response.json["state"]["queue"])
 
+    def test_adaptive_session_feedback_respects_history_consent(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "Consent Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        session = client.post(
+            "/api/v1/users/me/adaptive-session",
+            json={"mode": "explore", "use_preferences": False, "use_history": False, "limit": 5},
+        )
+        self.assertEqual(session.status_code, 200)
+        queue = [item["id"] for item in session.json["recommendations"]]
+        with patch.object(mood_app, "get_user_recommendations", return_value=[]) as ranking:
+            response = client.post(
+                "/api/v1/users/me/adaptive-session/feedback",
+                json={
+                    "song_id": queue[0],
+                    "event_type": "like",
+                    "queue": queue,
+                    "played_ids": [],
+                    "mode": "explore",
+                    "mood": "neutral",
+                    "use_preferences": False,
+                    "use_history": False,
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ranking.call_args.kwargs["include_history"])
+
+    def test_adaptive_session_feedback_rejects_invalid_position(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "Invalid Position Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        session = client.post(
+            "/api/v1/users/me/adaptive-session",
+            json={"mode": "explore", "use_preferences": False, "use_history": False, "limit": 5},
+        )
+        queue = [item["id"] for item in session.json["recommendations"]]
+        response = client.post(
+            "/api/v1/users/me/adaptive-session/feedback",
+            json={
+                "song_id": queue[0],
+                "event_type": "like",
+                "queue": queue,
+                "played_ids": [],
+                "mode": "explore",
+                "mood": "neutral",
+                "position_ms": "not-a-number",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+
     def test_listening_room_invites_sync_shared_playlist_state(self):
         owner = mood_app.app.test_client()
         owner.post(

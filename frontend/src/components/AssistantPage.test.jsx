@@ -138,6 +138,7 @@ describe("AssistantPage", () => {
         body: JSON.stringify({
           mode: "change",
           mood: "happy",
+          source_mood: "neutral",
           use_preferences: false,
           use_history: false,
           context: "studying",

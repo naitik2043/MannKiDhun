@@ -116,6 +116,21 @@ function AssistantPage({ user, theme, toggleTheme }) {
             setRoomInviteUrl(window.location.origin + "/assistant?room_token=" + pendingRoomToken);
             roomVersionRef.current = roomResult.room.version;
             window.sessionStorage.setItem("mannkidhun_room_token", pendingRoomToken);
+            const sharedTracks = (roomResult.playlist.tracks || []).filter((track) => (
+              track.provider === "youtube" &&
+              typeof track.provider_track_id === "string" &&
+              /^[a-zA-Z0-9_-]{11}$/.test(track.provider_track_id)
+            ));
+            const currentIndex = sharedTracks.findIndex(
+              (track) => Number(track.id) === Number(roomResult.room.state?.current_song_id),
+            );
+            if (currentIndex >= 0) {
+              player.playQueue(sharedTracks, currentIndex, Boolean(roomResult.room.state?.is_playing));
+              window.setTimeout(
+                () => player.seekTo(Number(roomResult.room.state?.position_ms || 0)),
+                1200,
+              );
+            }
             setActionStatus(`You joined the group listening room for ${roomResult.playlist.name}.`);
           }
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -182,10 +197,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
             (track) => Number(track.id) === Number(nextRoom.state.current_song_id),
           );
           if (index >= 0) {
-            livePlayer.playQueue(tracks, index);
+            livePlayer.playQueue(tracks, index, Boolean(nextRoom.state.is_playing));
             window.setTimeout(() => {
               livePlayer.seekTo(Number(nextRoom.state.position_ms || 0));
-              if (!nextRoom.state.is_playing) livePlayer.pausePlayback();
             }, 1200);
           } else if (!nextRoom.state.current_song_id) {
             livePlayer.pausePlayback();
@@ -482,6 +496,21 @@ function AssistantPage({ user, theme, toggleTheme }) {
       setRoomInviteUrl(created.invite_url);
       roomVersionRef.current = joined.room.version;
       window.sessionStorage.setItem("mannkidhun_room_token", token);
+      const sharedTracks = (joined.playlist.tracks || []).filter((track) => (
+        track.provider === "youtube" &&
+        typeof track.provider_track_id === "string" &&
+        /^[a-zA-Z0-9_-]{11}$/.test(track.provider_track_id)
+      ));
+      const currentIndex = sharedTracks.findIndex(
+        (track) => Number(track.id) === Number(joined.room.state?.current_song_id),
+      );
+      if (currentIndex >= 0) {
+        player.playQueue(sharedTracks, currentIndex, Boolean(joined.room.state?.is_playing));
+        window.setTimeout(
+          () => player.seekTo(Number(joined.room.state?.position_ms || 0)),
+          1200,
+        );
+      }
       try {
         await navigator.clipboard.writeText(created.invite_url);
         setActionStatus("Group listening room started. Invite link copied.");

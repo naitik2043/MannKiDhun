@@ -17,7 +17,8 @@
 - Mood journal entries are manually entered and private to the account owner. They do not contain model-inferred mood, camera frames, or raw assistant conversations.
 - Music DNA is disabled by default and requires a separate opt-in. It exposes derived summaries only to the signed-in user and can be disabled at any time.
 - Playlist sharing is explicitly opt-in. Public playlist endpoints expose only playlists whose owner set `is_public`; visitors have read-only access.
-- Collaborative invitation tokens are random bearer values; only their SHA-256 hashes are stored. Tokens expire after seven days and can be revoked by the owner. Treat invitation links like passwords until they expire or are revoked.
+- Collaborative playlist invitation tokens are random bearer values; only SHA-256 hashes are stored. They expire after seven days and can be revoked by the owner.
+- Group listening invitation tokens are random bearer values; only SHA-256 hashes are stored. They expire after six hours. Room state is accessible only to authenticated participants, and the playlist owner can close the room. Playback updates use monotonically increasing versions to detect stale concurrent writes.
 - Collaborators are assigned either viewer or editor access. Editor endpoints verify membership/role on each operation; playlist metadata and collaboration management remain owner-only.
 
 ## Known gaps before production
@@ -27,7 +28,7 @@
 - Login and assistant throttles are process-local, so limits reset on restart and are not shared across workers or hosts. A shared rate-limit store is required before scaling beyond the current single-process deployment.
 - `SECRET_KEY` falls back to a newly generated process-local value when unset; deployments must supply a stable secret.
 - Secure cookies and HSTS require explicit HTTPS configuration. Reverse-proxy trust, HTTPS enforcement, a restrictive Content Security Policy, production error monitoring, and alerting still need deployment-level review.
-- The database is local SQLite. `MANNKIDHUN_DATA_DIR` can place the database and profile uploads on a mounted persistent disk, but migration versioning, managed-database support, automated backups, and tested restore procedures are absent.
+- The database is local SQLite. Versioned schema migrations and integrity-checked manual online backup / restore tools are included, but managed-database support, scheduled off-site backups, and recurring restore drills are absent. `MANNKIDHUN_DATA_DIR` is durable only when it points to a mounted persistent disk.
 - GitHub Actions now runs CodeQL static analysis for Python and JavaScript / TypeScript. Dependency vulnerability scanning and automated dependency updates are still not configured.
 - Assistant and failed-login rate limits are process-local and are not shared across workers.
 - Model output is not calibrated and has not been evaluated on a labeled, subject-separated dataset. Expression estimates are not verified emotional states.
