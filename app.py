@@ -2388,6 +2388,139 @@ def public_playlist(playlist_id):
     return jsonify({"playlist": playlist})
 
 
+@app.route("/api/v1/playlists/<int:playlist_id>/listening-room", methods=["POST"])
+def listening_room_create(playlist_id):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to start a group listening room."}), 401
+    playlist = get_playlist_details(str(AUTH_DATABASE), playlist_id, user_id=user["id"])
+    if playlist is None or not playlist.get("is_owner"):
+        return jsonify({"error": "Only the playlist owner can start a listening room."}), 403
+
+    token = secrets.token_urlsafe(24)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=6)).strftime("%Y-%m-%d %H:%M:%S")
+    room_id = create_listening_room(
+        str(AUTH_DATABASE), user["id"], playlist_id, token_hash, expires_at
+    )
+    if room_id is None:
+        return jsonify({"error": "Could not start a room for this playlist."}), 409
+    queue = [int(track["id"]) for track in playlist["tracks"]]
+    room_state = {
+        "current_song_id": queue[0] if queue else None,
+        "position_ms": 0,
+        "is_playing": False,
+        "queue": queue,
+        "updated_by": user["id"],
+    }
+    update_listening_room(
+        str(AUTH_DATABASE), user["id"], token_hash, room_state, _sqlite_now()
+    )
+    return jsonify({
+        "room_id": room_id,
+        "room_token": token,
+        "invite_url": request.host_url.rstrip("/") + "/assistant?room_token=" + token,
+        "expires_at": expires_at,
+        "playlist": {"id": playlist_id, "name": playlist["name"]},
+    }), 201
+
+
+@app.route("/api/v1/listening-rooms/<token>/join", methods=["POST"])
+def listening_room_join(token):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to join a group listening room."}), 401
+    if not isinstance(token, str) or not 24 <= len(token) <= 100:
+        return jsonify({"error": "This listening-room invitation is invalid."}), 400
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    room = join_listening_room(str(AUTH_DATABASE), user["id"], token_hash, _sqlite_now())
+    if room is None:
+        return jsonify({"error": "This room has expired or the invitation is invalid."}), 404
+    # The bearer invite grants access to this room's playlist only after membership is recorded.
+    playlist = get_playlist_details(str(AUTH_DATABASE), room["playlist_id"], user_id=None)
+    if playlist is None:
+        return jsonify({"error": "The shared playlist is no longer available."}), 404
+    return jsonify({"room": room, "playlist": playlist})
+
+
+@app.route("/api/v1/listening-rooms/<token>", methods=["GET", "DELETE"])
+def listening_room_detail(token):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to view this listening room."}), 401
+    if not isinstance(token, str) or not 24 <= len(token) <= 100:
+        return jsonify({"error": "This listening-room link is invalid."}), 400
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if request.method == "DELETE":
+        if not close_listening_room(str(AUTH_DATABASE), user["id"], token_hash):
+            return jsonify({"error": "Only the room owner can close this room."}), 403
+        return jsonify({"closed": True})
+    room = get_listening_room(str(AUTH_DATABASE), user["id"], token_hash, _sqlite_now())
+    if room is None:
+        return jsonify({"error": "Room not found or you are not a participant."}), 404
+    return jsonify({"room": room})
+
+
+@app.route("/api/v1/listening-rooms/<token>/state", methods=["PUT"])
+def listening_room_update(token):
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to sync group playback."}), 401
+    if not isinstance(token, str) or not 24 <= len(token) <= 100:
+        return jsonify({"error": "This listening-room link is invalid."}), 400
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get("state"), dict):
+        return jsonify({"error": "Provide a group playback state."}), 400
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    room = get_listening_room(str(AUTH_DATABASE), user["id"], token_hash, _sqlite_now())
+    if room is None:
+        return jsonify({"error": "Room not found or you are not a participant."}), 404
+    state = payload["state"]
+    try:
+        queue = [int(item) for item in state.get("queue", [])]
+        current_song_id = state.get("current_song_id")
+        current_song_id = int(current_song_id) if current_song_id is not None else None
+        position_ms = int(state.get("position_ms", 0))
+        expected_version = payload.get("expected_version")
+        if expected_version is not None:
+            expected_version = int(expected_version)
+    except (TypeError, ValueError, OverflowError):
+        return jsonify({"error": "Track ids, version and playback position must be integers."}), 400
+    if len(queue) > 100 or len(set(queue)) != len(queue) or position_ms < 0:
+        return jsonify({"error": "Group playback queue or position is invalid."}), 400
+    playlist = get_playlist_details(str(AUTH_DATABASE), room["playlist_id"], user_id=None)
+    if playlist is None:
+        return jsonify({"error": "The shared playlist is no longer available."}), 404
+    playlist_song_ids = {int(item["id"]) for item in playlist["tracks"]}
+    if any(item not in playlist_song_ids for item in queue):
+        return jsonify({"error": "Group playback can only use tracks in the shared playlist."}), 400
+    if current_song_id is not None and current_song_id not in playlist_song_ids:
+        return jsonify({"error": "The current track must belong to the shared playlist."}), 400
+    room_state = {
+        "current_song_id": current_song_id,
+        "position_ms": min(position_ms, 24 * 60 * 60 * 1000),
+        "is_playing": bool(state.get("is_playing", False)),
+        "queue": queue,
+        "updated_by": user["id"],
+    }
+    result = update_listening_room(
+        str(AUTH_DATABASE),
+        user["id"],
+        token_hash,
+        room_state,
+        _sqlite_now(),
+        expected_version=expected_version,
+    )
+    if result is None:
+        return jsonify({"error": "Room membership expired."}), 404
+    if result.get("conflict"):
+        return jsonify({
+            "error": "The room changed on another listener's device.",
+            "version": result["version"],
+        }), 409
+    return jsonify({"room": result})
+
+
 @app.route("/api/v1/users/me/playback-state", methods=["GET", "POST", "DELETE"])
 def playback_state():
     user = get_authenticated_user()

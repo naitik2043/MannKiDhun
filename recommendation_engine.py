@@ -328,6 +328,7 @@ def build_hybrid_recommendations(
     limit=6,
     query_filters=None,
     context=None,
+    exclude_song_ids=None,
 ):
     user_preferences = user_preferences or {}
     interaction_history = interaction_history or {}
@@ -339,13 +340,14 @@ def build_hybrid_recommendations(
     favourite_artists = {_normalize_text(item) for item in user_preferences.get("artists", [])}
     listening_styles = {_normalize_text(item) for item in user_preferences.get("listening_styles", [])}
 
+    excluded_ids = {str(item) for item in (exclude_song_ids or [])}
     ranked = []
     seen = set()
     for song in songs:
         song_id = song.get("id")
         if song_id is None:
             song_id = song.get("provider_track_id") or song.get("title")
-        if song_id in seen:
+        if str(song_id) in excluded_ids or song_id in seen:
             continue
         seen.add(song_id)
 
@@ -576,6 +578,35 @@ def _fetch_user_preferences(connection, user_id):
     }
 
 
+def _fetch_behavioral_preferences(connection, user_id):
+    """Derive light-touch artist/genre/language interests from positive events."""
+    if user_id is None:
+        return {"genres": [], "languages": [], "artists": []}
+    rows = connection.execute(
+        """
+        SELECT a.name, s.genre, s.language, COUNT(*) AS positive_events
+        FROM user_song_interactions usi
+        JOIN songs s ON s.id = usi.song_id
+        LEFT JOIN artists a ON a.id = s.artist_id
+        WHERE usi.user_id = ?
+          AND usi.interaction_type IN ('like', 'save', 'complete')
+        GROUP BY a.name, s.genre, s.language
+        ORDER BY positive_events DESC, a.name
+        LIMIT 30
+        """,
+        (user_id,),
+    ).fetchall()
+    artists, genres, languages = [], [], []
+    for artist, genre, language, _count in rows:
+        if artist and artist not in artists:
+            artists.append(artist)
+        if genre and genre not in genres:
+            genres.append(genre)
+        if language and language not in languages:
+            languages.append(language)
+    return {"artists": artists, "genres": genres, "languages": languages}
+
+
 def get_user_recommendations(
     database_path,
     user_id=None,
@@ -586,6 +617,7 @@ def get_user_recommendations(
     include_history=True,
     query_filters=None,
     context=None,
+    exclude_song_ids=None,
 ):
     with closing(_connect_database(database_path)) as connection:
         connection.row_factory = sqlite3.Row
@@ -598,6 +630,11 @@ def get_user_recommendations(
         interactions = (
             _fetch_interaction_history(connection, user_id) if include_history else {}
         )
+        if include_history and user_id is not None:
+            learned = _fetch_behavioral_preferences(connection, user_id)
+            for key, values in learned.items():
+                preferences.setdefault(key, [])
+                preferences[key] = list(dict.fromkeys(preferences[key] + values))
         return build_hybrid_recommendations(
             songs,
             user_preferences=preferences,
@@ -607,6 +644,7 @@ def get_user_recommendations(
             limit=limit,
             query_filters=query_filters,
             context=context,
+            exclude_song_ids=exclude_song_ids,
         )
 
 
@@ -1500,6 +1538,163 @@ def get_playback_state(database_path, user_id):
         "repeat_mode": row[4] or "off",
         "last_updated": row[5],
     }
+
+
+def create_listening_room(database_path, owner_id, playlist_id, token_hash, expires_at):
+    if owner_id is None or not token_hash or not expires_at:
+        return None
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    with closing(_connect_database(database_path)) as connection, connection:
+        playlist = connection.execute(
+            "SELECT id FROM playlists WHERE id = ? AND user_id = ?",
+            (playlist_id, owner_id),
+        ).fetchone()
+        if playlist is None:
+            return None
+        cursor = connection.execute(
+            """
+            INSERT INTO listening_rooms
+                (playlist_id, owner_id, token_hash, expires_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (playlist_id, owner_id, token_hash, expires_at, now, now),
+        )
+        room_id = cursor.lastrowid
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO listening_room_participants
+                (room_id, user_id, joined_at, last_seen)
+            VALUES (?, ?, ?, ?)
+            """,
+            (room_id, owner_id, now, now),
+        )
+    return room_id
+
+
+def join_listening_room(database_path, user_id, token_hash, now):
+    if user_id is None or not token_hash:
+        return None
+    with closing(_connect_database(database_path)) as connection, connection:
+        room = connection.execute(
+            """
+            SELECT id, expires_at FROM listening_rooms
+            WHERE token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+        if room is None or room[1] <= now:
+            return None
+        connection.execute(
+            """
+            INSERT INTO listening_room_participants (room_id, user_id, joined_at, last_seen)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(room_id, user_id) DO UPDATE SET last_seen = excluded.last_seen
+            """,
+            (room[0], user_id, now, now),
+        )
+    return get_listening_room(database_path, user_id, token_hash, now)
+
+
+def get_listening_room(database_path, user_id, token_hash, now):
+    if user_id is None or not token_hash:
+        return None
+    with closing(_connect_database(database_path)) as connection, connection:
+        room = connection.execute(
+            """
+            SELECT lr.id, lr.playlist_id, lr.owner_id, lr.state_json, lr.version,
+                   lr.expires_at, lr.updated_at
+            FROM listening_rooms lr
+            JOIN listening_room_participants p ON p.room_id = lr.id AND p.user_id = ?
+            WHERE lr.token_hash = ? AND lr.expires_at > ?
+            """,
+            (user_id, token_hash, now),
+        ).fetchone()
+        if room is None:
+            return None
+        connection.execute(
+            """
+            UPDATE listening_room_participants SET last_seen = ?
+            WHERE room_id = ? AND user_id = ?
+            """,
+            (now, room[0], user_id),
+        )
+        participants = connection.execute(
+            """
+            SELECT u.id, u.name, p.last_seen
+            FROM listening_room_participants p
+            JOIN users u ON u.id = p.user_id
+            WHERE p.room_id = ? AND p.last_seen >= datetime(?, '-45 seconds')
+            ORDER BY p.joined_at
+            """,
+            (room[0], now),
+        ).fetchall()
+    try:
+        state = json.loads(room[3] or "{}")
+    except (TypeError, ValueError):
+        state = {}
+    return {
+        "id": room[0],
+        "playlist_id": room[1],
+        "owner_id": room[2],
+        "is_owner": room[2] == user_id,
+        "state": state,
+        "version": int(room[4] or 0),
+        "expires_at": room[5],
+        "updated_at": room[6],
+        "participants": [
+            {"id": row[0], "name": row[1], "last_seen": row[2]}
+            for row in participants
+        ],
+    }
+
+
+def update_listening_room(database_path, user_id, token_hash, state, now, expected_version=None):
+    if user_id is None or not token_hash or not isinstance(state, dict):
+        return None
+    with closing(_connect_database(database_path)) as connection, connection:
+        room = connection.execute(
+            """
+            SELECT lr.id, lr.version
+            FROM listening_rooms lr
+            JOIN listening_room_participants p ON p.room_id = lr.id AND p.user_id = ?
+            WHERE lr.token_hash = ? AND lr.expires_at > ?
+            """,
+            (user_id, token_hash, now),
+        ).fetchone()
+        if room is None:
+            return None
+        if expected_version is not None and int(expected_version) != int(room[1]):
+            return {"conflict": True, "version": int(room[1])}
+        cursor = connection.execute(
+            """
+            UPDATE listening_rooms
+            SET state_json = ?, version = version + 1, updated_at = ?
+            WHERE id = ? AND version = ?
+            """,
+            (json.dumps(state, ensure_ascii=False), now, room[0], room[1]),
+        )
+        if cursor.rowcount != 1:
+            latest = connection.execute(
+                "SELECT version FROM listening_rooms WHERE id = ?", (room[0],)
+            ).fetchone()
+            return {"conflict": True, "version": int(latest[0]) if latest else int(room[1])}
+        connection.execute(
+            """
+            UPDATE listening_room_participants SET last_seen = ?
+            WHERE room_id = ? AND user_id = ?
+            """,
+            (now, room[0], user_id),
+        )
+    return get_listening_room(database_path, user_id, token_hash, now)
+
+
+def close_listening_room(database_path, owner_id, token_hash):
+    with closing(_connect_database(database_path)) as connection, connection:
+        cursor = connection.execute(
+            "DELETE FROM listening_rooms WHERE token_hash = ? AND owner_id = ?",
+            (token_hash, owner_id),
+        )
+    return cursor.rowcount > 0
 
 
 def save_playback_state(database_path, user_id, payload):
