@@ -174,4 +174,4 @@ Important deployment boundaries:
 - The included Render Free Blueprint uses ephemeral storage. Local SQLite data and uploaded profile images can be lost on restart or redeploy.
 - A persistent Render disk with SQLite is intended for a single application instance. Multi-instance production use requires a managed database, object storage, shared rate limiting, backups, monitoring, and additional operational hardening.
 
-See [Security](./SECURITY.md), [Deployment](./DEPLOYMENT.md), [Database](./DATABASE.md), and [API documentation](./API_DOCUMENTATION.md) for implementation details.
+For user-facing and collaboration journeys, see [Application workflows](./WORKFLOWS.md). Also see [Security](./SECURITY.md), [Deployment](./DEPLOYMENT.md), [Database](./DATABASE.md), and [API documentation](./API_DOCUMENTATION.md) for implementation details.
