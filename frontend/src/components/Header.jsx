@@ -46,6 +46,7 @@ function Header({ theme, onToggleTheme, user, onSignOut }) {
     ? [
         { label: "Home", href: "/dashboard", active: path === "/dashboard" },
         { label: "Discover", href: "/app", active: path === "/app" || path === "/mood-check" },
+        { label: "Community", href: "/community", active: path === "/community" },
         {
           label: "Playlists",
           href: "/assistant#assistant-playlists",
@@ -56,6 +57,7 @@ function Header({ theme, onToggleTheme, user, onSignOut }) {
     : [
         { label: "Home", href: "/", active: isHome && !currentHash },
         { label: "Discover Music", href: "/signup", active: path === "/signup" },
+        { label: "Community", href: "/community", active: path === "/community" },
         { label: "Features", href: "/#features", active: isHome && currentHash === "#features" },
         { label: "About", href: "/#about-us", active: isHome && currentHash === "#about-us" },
       ];

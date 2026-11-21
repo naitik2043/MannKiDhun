@@ -12,6 +12,7 @@ import MoodDetectionCard from "./components/MoodDetectionCard.jsx";
 import MusicRecommendationCard from "./components/MusicRecommendationCard.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
 import PublicPlaylistPage from "./components/PublicPlaylistPage.jsx";
+import CommunityPage from "./components/CommunityPage.jsx";
 import SiteFooter from "./components/SiteFooter.jsx";
 import { useCamera } from "./hooks/useCamera.js";
 import { useMoodDetection } from "./hooks/useMoodDetection.js";
@@ -139,6 +140,10 @@ function AuthenticatedPage({ theme, toggleTheme, Page }) {
 function App() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const { theme, toggleTheme } = useTheme();
+
+  if (path === "/community") {
+    return <CommunityPage theme={theme} toggleTheme={toggleTheme} />;
+  }
 
   const publicPlaylistMatch = path.match(/^\/playlists\/(\d+)$/);
   if (publicPlaylistMatch) {

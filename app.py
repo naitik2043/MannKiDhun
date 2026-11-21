@@ -1929,6 +1929,37 @@ def refine_playlist(playlist_id):
     })
 
 
+@app.route("/api/v1/public/playlists", methods=["GET"])
+def public_playlists_index():
+    with closing(_connect_database(AUTH_DATABASE)) as connection:
+        rows = connection.execute(
+            """
+            SELECT p.id, p.name, p.description, p.updated_at, u.name AS owner_name,
+                   COUNT(pt.song_id) AS track_count
+            FROM playlists p
+            JOIN users u ON u.id = p.user_id
+            LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
+            WHERE p.is_public = 1
+            GROUP BY p.id
+            ORDER BY p.updated_at DESC, p.id DESC
+            LIMIT 30
+            """
+        ).fetchall()
+    return jsonify({
+        "playlists": [
+            {
+                "id": row[0],
+                "name": row[1],
+                "description": row[2],
+                "updated_at": row[3],
+                "owner_name": row[4],
+                "track_count": int(row[5] or 0),
+            }
+            for row in rows
+        ]
+    })
+
+
 @app.route("/api/v1/public/playlists/<int:playlist_id>", methods=["GET"])
 def public_playlist(playlist_id):
     with closing(_connect_database(AUTH_DATABASE)) as connection:
