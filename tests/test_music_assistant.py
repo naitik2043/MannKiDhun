@@ -66,6 +66,41 @@ class MusicAssistantIntentTests(unittest.TestCase):
         self.assertIsNone(intent["genre"])
         self.assertIsNone(intent["artist"])
 
+    def test_hinglish_requests_extract_mood_language_and_context(self):
+        intent, provider = extract_music_intent(
+            "Mujhe padhai ke liye sukoon wale Hindi gaane suggest karo",
+            [],
+        )
+
+        self.assertEqual(provider, "rules")
+        self.assertEqual(intent["mood"], "relaxed")
+        self.assertEqual(intent["language"], "Hindi")
+        self.assertEqual(intent["context"], "studying")
+
+    def test_devanagari_requests_extract_mood_language_and_context(self):
+        intent, provider = extract_music_intent(
+            "मुझे शाम के लिए शांत हिंदी गाने चाहिए",
+            [],
+        )
+
+        self.assertEqual(provider, "rules")
+        self.assertEqual(intent["mood"], "relaxed")
+        self.assertEqual(intent["language"], "Hindi")
+        self.assertEqual(intent["context"], "evening")
+
+    def test_native_script_regional_language_is_recognized(self):
+        cases = {
+            "ਪੰਜਾਬੀ": "Punjabi",
+            "தமிழ்": "Tamil",
+            "తెలుగు": "Telugu",
+            "বাংলা": "Bengali",
+            "मराठी": "Marathi",
+        }
+        for phrase, expected in cases.items():
+            with self.subTest(phrase=phrase):
+                intent, _provider = extract_music_intent(f"{phrase} music", [])
+                self.assertEqual(intent["language"], expected)
+
     def test_provider_timeout_falls_back_to_local_intent_parsing(self):
         with (
             patch.dict("os.environ", {"AI_ASSISTANT_API_KEY": "test-key"}),

@@ -1,4 +1,4 @@
-function MusicRecommendationCard({ mood, songId }) {
+function MusicRecommendationCard({ mood, songId, moodSource }) {
   const songUrl = songId
     ? `https://www.youtube.com/watch?v=${songId}`
     : "";
@@ -70,7 +70,11 @@ function MusicRecommendationCard({ mood, songId }) {
         </div>
       )}
       <p className="mt-auto border-t border-white/10 pt-3 text-[11px] text-[#aaa4bb]">
-        This suggestion is based on an expression estimate, not a measure of how you feel.
+        {moodSource === "manual"
+          ? "This suggestion follows the vibe you chose."
+          : moodSource === "estimate"
+            ? "You confirmed an optional expression-based suggestion. It is not a measure of how you feel."
+            : "Choose or confirm a vibe to unlock a music suggestion."}
       </p>
     </article>
   );

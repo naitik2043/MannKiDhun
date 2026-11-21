@@ -15,6 +15,23 @@ function jsonResponse(body, ok = true) {
 }
 
 describe("AssistantPage", () => {
+  it("prefills Match mode from a confirmed mood check-in", async () => {
+    window.history.pushState({}, "", "/assistant?mood=happy");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ playlists: [] })));
+
+    render(
+      <AssistantPage
+        user={{ name: "Listener", email: "listener@example.com" }}
+        theme="dark"
+        toggleTheme={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Current mood (optional)").value).toBe("happy");
+    expect(screen.getByText(/Starting from your happy check-in/)).toBeTruthy();
+    window.history.replaceState({}, "", "/");
+  });
+
   it("shows catalogue recommendations, saves a song, and clears chat", async () => {
     const fetchMock = vi.fn(async (url, options = {}) => {
       if (url === "/api/v1/playlists/3/invites" && options.method === "POST") {

@@ -30,11 +30,13 @@ function MoodExperience({ user, theme, toggleTheme }) {
     validFrames,
     qualityStatus,
     moodSource,
+    isMoodConfirmed,
     songId,
     status,
     error,
     isDetecting,
     detectMood,
+    confirmDetectedMood,
     chooseManualMood,
   } = useMoodDetection(videoRef, canvasRef);
 
@@ -71,7 +73,12 @@ function MoodExperience({ user, theme, toggleTheme }) {
                 chooseManualMood(selectedMood);
                 setCameraEnabled(false);
               }}
+              onConfirmMood={confirmDetectedMood}
+              onExploreWithAssistant={() => {
+                window.location.assign("/assistant?mood=" + encodeURIComponent(mood));
+              }}
               mood={mood}
+              isMoodConfirmed={isMoodConfirmed}
               consistency={consistency}
               predictionScores={predictionScores}
               validFrames={validFrames}
@@ -82,7 +89,11 @@ function MoodExperience({ user, theme, toggleTheme }) {
               isDetecting={isDetecting}
               onDetectMood={detectMood}
             />
-            <MusicRecommendationCard mood={mood} songId={songId} />
+            <MusicRecommendationCard
+              mood={isMoodConfirmed ? mood : ""}
+              songId={isMoodConfirmed ? songId : ""}
+              moodSource={isMoodConfirmed ? moodSource : ""}
+            />
           </section>
           <HowItWorks />
           <AboutSection />

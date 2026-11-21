@@ -10,7 +10,10 @@ function MoodDetectionCard({
   onRetryCamera,
   onDisableCamera,
   onChooseMood,
+  onConfirmMood,
+  onExploreWithAssistant,
   mood,
+  isMoodConfirmed,
   consistency,
   predictionScores,
   validFrames,
@@ -123,7 +126,11 @@ function MoodDetectionCard({
         </button>
         <div className="min-w-[94px] text-right" aria-live="polite">
           <p className="result-label">
-            {moodSource === "manual" ? "YOUR CHOICE" : "EXPRESSION ESTIMATE"}
+            {moodSource === "manual"
+              ? "YOUR CHOICE"
+              : isMoodConfirmed
+                ? "CONFIRMED SUGGESTION"
+                : "EXPRESSION ESTIMATE"}
           </p>
           <p className="mt-1 font-display text-lg font-extrabold uppercase tracking-tight">
             {mood || "—"}
@@ -177,8 +184,28 @@ function MoodDetectionCard({
       >
         {status}
       </p>
+      {moodSource === "estimate" && (
+        <div className="mt-3">
+          {isMoodConfirmed ? (
+            <p className="text-sm text-muted" role="status">
+              You confirmed this suggestion. It is still okay to choose a different vibe.
+            </p>
+          ) : (
+            <button
+              className="camera-action-button"
+              type="button"
+              disabled={isDetecting}
+              onClick={onConfirmMood}
+            >
+              Use this suggested mood
+            </button>
+          )}
+        </div>
+      )}
       <div className="manual-vibe-picker">
-        <label htmlFor="manual-vibe">Prefer to choose your own vibe?</label>
+        <label htmlFor="manual-vibe">
+          {moodSource === "estimate" ? "Not quite right? Choose your own vibe." : "Prefer to choose your own vibe?"}
+        </label>
         <div>
           <select
             id="manual-vibe"
@@ -201,6 +228,15 @@ function MoodDetectionCard({
           </button>
         </div>
       </div>
+      {isMoodConfirmed && mood && (
+        <button
+          className="camera-action-button mt-3"
+          type="button"
+          onClick={onExploreWithAssistant}
+        >
+          Explore with Music Assistant →
+        </button>
+      )}
     </article>
   );
 }

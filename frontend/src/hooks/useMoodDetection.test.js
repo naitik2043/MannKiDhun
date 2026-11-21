@@ -86,6 +86,8 @@ describe("useMoodDetection", () => {
 
     expect(result.current.mood).toBe("happy");
     expect(result.current.moodSource).toBe("estimate");
+    expect(result.current.isMoodConfirmed).toBe(false);
+    expect(result.current.songId).toBe("");
     expect(result.current.predictionScores).toEqual(scores);
     expect(result.current.validFrames).toBe(5);
     expect(result.current.qualityStatus).toBe("good");
@@ -96,6 +98,11 @@ describe("useMoodDetection", () => {
     expect(canvas.width).toBe(0);
     expect(canvas.height).toBe(0);
     expect(result.current.isDetecting).toBe(false);
+
+    act(() => result.current.confirmDetectedMood());
+    expect(result.current.isMoodConfirmed).toBe(true);
+    expect(result.current.songId).toBeTruthy();
+    expect(result.current.status).toContain("You confirmed");
   });
 
   it("offers a manual vibe without making an API request", () => {
@@ -108,6 +115,8 @@ describe("useMoodDetection", () => {
     act(() => result.current.chooseManualMood("sad"));
     expect(result.current.mood).toBe("sad");
     expect(result.current.moodSource).toBe("manual");
+    expect(result.current.isMoodConfirmed).toBe(true);
+    expect(result.current.songId).toBeTruthy();
     expect(result.current.consistency).toBeNull();
     expect(result.current.predictionScores).toBeNull();
     expect(fetch).not.toHaveBeenCalled();

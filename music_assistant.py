@@ -9,15 +9,31 @@ import urllib.request
 logger = logging.getLogger(__name__)
 
 MOODS = {
-    "relaxed": ("relaxed", "relaxing", "calm", "peaceful", "soothing"),
-    "energetic": ("energetic", "energy", "upbeat", "lively"),
-    "motivational": ("motivational", "motivation", "inspiring"),
-    "focused": ("focused", "focus", "studying", "study", "concentrate"),
-    "romantic": ("romantic", "romance", "love"),
-    "happy": ("happy", "cheerful", "bright"),
-    "sad": ("sad", "melancholic", "heartbroken"),
-    "devotional": ("devotional", "spiritual"),
-    "neutral": ("neutral",),
+    "relaxed": (
+        "relaxed", "relaxing", "calm", "peaceful", "soothing",
+        "sukoon", "sukoon bhara", "shaant", "shanti", "aaram",
+        "सुकून", "शांत", "शांति", "आराम",
+    ),
+    "energetic": (
+        "energetic", "energy", "upbeat", "lively", "josh", "joshila",
+        "जोश", "जोशीला",
+    ),
+    "motivational": (
+        "motivational", "motivation", "inspiring", "hausla", "himmat", "prerna",
+        "हौसला", "हिम्मत", "प्रेरणा",
+    ),
+    "focused": (
+        "focused", "focus", "studying", "study", "concentrate",
+        "padhai", "padhna", "dhyan", "पढ़ाई", "पढ़ना", "ध्यान",
+    ),
+    "romantic": (
+        "romantic", "romance", "love", "pyaar", "pyar", "ishq",
+        "रोमांटिक", "प्यार", "इश्क", "मोहब्बत",
+    ),
+    "happy": ("happy", "cheerful", "bright", "khush", "khushi", "खुश", "खुशी"),
+    "sad": ("sad", "melancholic", "heartbroken", "udaas", "udas", "dukh", "उदास", "दुखी", "दुख"),
+    "devotional": ("devotional", "spiritual", "bhajan", "bhakti", "भजन", "भक्ति", "आध्यात्मिक"),
+    "neutral": ("neutral", "सामान्य"),
 }
 
 GENRES = {
@@ -44,12 +60,27 @@ LANGUAGES = {
     "urdu": "Urdu",
     "sanskrit": "Sanskrit",
 }
+LANGUAGE_SCRIPT_ALIASES = {
+    "हिंदी": "Hindi",
+    "अंग्रेज़ी": "English",
+    "अंग्रेजी": "English",
+    "ਪੰਜਾਬੀ": "Punjabi",
+    "தமிழ்": "Tamil",
+    "తెలుగు": "Telugu",
+    "বাংলা": "Bengali",
+    "मराठी": "Marathi",
+    "ગુજરાતી": "Gujarati",
+    "മലയാളം": "Malayalam",
+    "ಕನ್ನಡ": "Kannada",
+    "اردو": "Urdu",
+    "संस्कृत": "Sanskrit",
+}
 CONTEXTS = {
-    "studying": ("studying", "study", "work", "working", "focus"),
-    "travelling": ("travelling", "traveling", "travel", "journey", "driving"),
-    "evening": ("evening", "night"),
-    "workout": ("workout", "exercise", "running", "gym"),
-    "sleep": ("sleep", "bedtime"),
+    "studying": ("studying", "study", "work", "working", "focus", "padhai", "padhna", "पढ़ाई", "पढ़ना"),
+    "travelling": ("travelling", "traveling", "travel", "journey", "driving", "safar", "yatra", "सफर", "यात्रा"),
+    "evening": ("evening", "night", "shaam", "sham", "raat", "शाम", "रात"),
+    "workout": ("workout", "exercise", "running", "gym", "kasrat", "vyayam", "कसरत", "व्यायाम"),
+    "sleep": ("sleep", "bedtime", "sona", "sone", "neend", "nind", "सोना", "नींद"),
 }
 FOLLOW_UP = re.compile(r"\b(more|another|similar|like that|something else)\b", re.I)
 
@@ -74,6 +105,11 @@ def _rule_based_intent(message, known_artists):
         if _contains_term(text, language):
             intent["language"] = display_name
             break
+    if intent["language"] is None:
+        for alias, display_name in LANGUAGE_SCRIPT_ALIASES.items():
+            if _contains_term(text, alias):
+                intent["language"] = display_name
+                break
     for artist in sorted(known_artists, key=len, reverse=True):
         if artist and _contains_term(text, artist):
             intent["artist"] = artist
@@ -201,6 +237,8 @@ def extract_music_intent(message, known_artists, previous_intent=None):
         candidate = provider_language.strip().lower()
         if candidate in LANGUAGES:
             validated["language"] = LANGUAGES[candidate]
+        elif candidate in LANGUAGE_SCRIPT_ALIASES:
+            validated["language"] = LANGUAGE_SCRIPT_ALIASES[candidate]
 
     provider_artist = provider_intent.get("artist")
     if isinstance(provider_artist, str):

@@ -8,6 +8,10 @@ const suggestedPrompts = [
   "I want energetic music for travelling",
   "Find motivational songs for studying",
 ];
+const supportedMoods = [
+  "happy", "sad", "angry", "neutral", "surprise", "romantic",
+  "relaxed", "energetic", "motivational", "focused", "devotional",
+];
 
 function canEditPlaylist(playlist) {
   return Boolean(playlist?.is_owner || playlist?.role === "editor" || playlist?.role === "owner");
@@ -32,7 +36,10 @@ function AssistantPage({ user, theme, toggleTheme }) {
   const [activeSong, setActiveSong] = useState(null);
   const [actionStatus, setActionStatus] = useState("");
   const [mode, setMode] = useState("match");
-  const [currentMood, setCurrentMood] = useState("");
+  const [currentMood, setCurrentMood] = useState(() => {
+    const moodFromCheckIn = new URLSearchParams(window.location.search).get("mood")?.toLowerCase();
+    return supportedMoods.includes(moodFromCheckIn) ? moodFromCheckIn : "";
+  });
   const [currentContext, setCurrentContext] = useState("");
   const [targetMood, setTargetMood] = useState("relaxed");
   const [isPublicPlaylist, setIsPublicPlaylist] = useState(false);
@@ -541,6 +548,11 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 Clear conversation
               </button>
             </div>
+            {currentMood && (
+              <p className="assistant-privacy" role="status">
+                Starting from your {currentMood} check-in. You can change this mood before searching.
+              </p>
+            )}
             <section className="assistant-discovery-controls" aria-label="Discovery mode">
               <label>
                 Discovery mode
@@ -557,6 +569,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
                     <option value="">Use the mood in my request</option>
                     <option value="happy">Happy</option>
                     <option value="sad">Sad</option>
+                    <option value="angry">Angry</option>
+                    <option value="neutral">Neutral</option>
+                    <option value="surprise">Surprised</option>
                     <option value="relaxed">Relaxed</option>
                     <option value="energetic">Energetic</option>
                     <option value="romantic">Romantic</option>
@@ -572,6 +587,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
                   <select value={targetMood} onChange={(event) => setTargetMood(event.target.value)}>
                     <option value="happy">Happy</option>
                     <option value="sad">Sad</option>
+                    <option value="angry">Angry</option>
+                    <option value="neutral">Neutral</option>
+                    <option value="surprise">Surprised</option>
                     <option value="relaxed">Relaxed</option>
                     <option value="energetic">Energetic</option>
                     <option value="romantic">Romantic</option>

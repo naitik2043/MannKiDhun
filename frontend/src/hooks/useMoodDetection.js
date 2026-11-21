@@ -10,6 +10,7 @@ export function useMoodDetection(videoRef, canvasRef) {
   const [validFrames, setValidFrames] = useState(0);
   const [qualityStatus, setQualityStatus] = useState("");
   const [moodSource, setMoodSource] = useState("");
+  const [isMoodConfirmed, setIsMoodConfirmed] = useState(false);
   const [songId, setSongId] = useState("");
   const [error, setError] = useState("");
 
@@ -33,6 +34,7 @@ export function useMoodDetection(videoRef, canvasRef) {
     setValidFrames(0);
     setQualityStatus("");
     setMoodSource("");
+    setIsMoodConfirmed(false);
     setSongId("");
     setError("");
     setStatus("Getting ready to capture five frames…");
@@ -119,8 +121,9 @@ export function useMoodDetection(videoRef, canvasRef) {
       setValidFrames(result.valid_frames);
       setQualityStatus(result.quality_status);
       setMoodSource("estimate");
-      setSongId(chooseSong(expression));
-      setStatus("Expression estimate ready. It is only a suggestion.");
+      setIsMoodConfirmed(false);
+      setSongId("");
+      setStatus("Expression estimate ready. Confirm it or choose your own vibe.");
     } catch (error) {
       console.error("Mood detection failed:", error);
       const message =
@@ -144,6 +147,16 @@ export function useMoodDetection(videoRef, canvasRef) {
     }
   }
 
+  function confirmDetectedMood() {
+    if (moodSource !== "estimate" || !mood || !recommendations[mood]) {
+      return;
+    }
+    setIsMoodConfirmed(true);
+    setSongId(chooseSong(mood));
+    setError("");
+    setStatus("You confirmed the suggested mood. You can still choose a different vibe.");
+  }
+
   function chooseManualMood(selectedMood) {
     if (!recommendations[selectedMood]) {
       throw new Error(`No music recommendations are configured for "${selectedMood}".`);
@@ -154,6 +167,7 @@ export function useMoodDetection(videoRef, canvasRef) {
     setValidFrames(0);
     setQualityStatus("");
     setMoodSource("manual");
+    setIsMoodConfirmed(true);
     setSongId(chooseSong(selectedMood));
     setError("");
     setStatus("Your chosen vibe is ready. No expression estimate was used.");
@@ -166,11 +180,13 @@ export function useMoodDetection(videoRef, canvasRef) {
     validFrames,
     qualityStatus,
     moodSource,
+    isMoodConfirmed,
     songId,
     status,
     error,
     isDetecting,
     detectMood,
+    confirmDetectedMood,
     chooseManualMood,
   };
 }
