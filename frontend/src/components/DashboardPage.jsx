@@ -29,6 +29,15 @@ function DashboardPage({ user, theme, toggleTheme }) {
   const [playlistsLoading, setPlaylistsLoading] = useState(true);
   const [historyError, setHistoryError] = useState("");
   const [playlistsError, setPlaylistsError] = useState("");
+  const [journalEntries, setJournalEntries] = useState([]);
+  const [journalMood, setJournalMood] = useState("neutral");
+  const [journalNote, setJournalNote] = useState("");
+  const [journalLoading, setJournalLoading] = useState(true);
+  const [journalStatus, setJournalStatus] = useState("");
+  const [journalError, setJournalError] = useState("");
+  const [musicDna, setMusicDna] = useState(null);
+  const [musicDnaLoading, setMusicDnaLoading] = useState(true);
+  const [musicDnaBusy, setMusicDnaBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -59,10 +68,115 @@ function DashboardPage({ user, theme, toggleTheme }) {
       }
     }
 
+    async function loadJournal() {
+      try {
+        const response = await fetch("/api/v1/users/me/mood-journal");
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error || "Could not load your mood journal.");
+        if (active) setJournalEntries(Array.isArray(result?.entries) ? result.entries : []);
+      } catch (error) {
+        if (active) setJournalError(error.message || "Could not load your mood journal.");
+      } finally {
+        if (active) setJournalLoading(false);
+      }
+    }
+
+    async function loadMusicDna() {
+      try {
+        const response = await fetch("/api/v1/users/me/music-dna");
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error || "Could not load Music DNA.");
+        if (active) setMusicDna(result);
+      } catch (error) {
+        if (active) setMusicDna({ enabled: false, error: error.message });
+      } finally {
+        if (active) setMusicDnaLoading(false);
+      }
+    }
+
     loadHistory();
     loadPlaylists();
+    loadJournal();
+    loadMusicDna();
     return () => { active = false; };
   }, []);
+
+  async function saveJournalEntry(event) {
+    event.preventDefault();
+    setJournalError("");
+    setJournalStatus("");
+    try {
+      const response = await fetch("/api/v1/users/me/mood-journal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mood: journalMood, note: journalNote }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || "Could not save your journal entry.");
+      setJournalEntries((current) => [result.entry, ...current].slice(0, 30));
+      setJournalNote("");
+      setJournalStatus("Your private mood note was saved.");
+    } catch (error) {
+      setJournalError(error.message || "Could not save your journal entry.");
+    }
+  }
+
+  async function deleteJournalEntry(entryId) {
+    setJournalError("");
+    setJournalStatus("");
+    try {
+      const response = await fetch(`/api/v1/users/me/mood-journal/${entryId}`, { method: "DELETE" });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || "Could not delete this entry.");
+      setJournalEntries((current) => current.filter((entry) => entry.id !== entryId));
+      setJournalStatus("Journal entry deleted.");
+    } catch (error) {
+      setJournalError(error.message || "Could not delete this entry.");
+    }
+  }
+
+  async function toggleMusicDna() {
+    setMusicDnaBusy(true);
+    try {
+      const enabled = !musicDna?.enabled;
+      const response = await fetch("/api/v1/users/me/music-dna/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || "Could not update Music DNA consent.");
+      if (enabled) {
+        const dnaResponse = await fetch("/api/v1/users/me/music-dna");
+        const dnaResult = await dnaResponse.json().catch(() => null);
+        if (!dnaResponse.ok) throw new Error(dnaResult?.error || "Could not build Music DNA.");
+        setMusicDna(dnaResult);
+      } else {
+        setMusicDna({ enabled: false, message: "Music DNA is turned off." });
+      }
+    } catch (error) {
+      setJournalError(error.message || "Could not update Music DNA.");
+    } finally {
+      setMusicDnaBusy(false);
+    }
+  }
+
+  function renderDnaItems(title, items) {
+    return (
+      <div className="dashboard-dna-group">
+        <h3>{title}</h3>
+        {items?.length ? (
+          <div className="flex flex-wrap gap-2">
+            {items.map((item) => (
+              <span className="dashboard-dna-chip" key={item.name}>
+                {item.name}
+              </span>
+            ))}
+          </div>
+        ) : <p>Not enough listening activity yet.</p>}
+      </div>
+    );
+  }
 
   async function signOut() {
     const response = await fetch("/api/auth/logout", { method: "POST" });
@@ -89,6 +203,104 @@ function DashboardPage({ user, theme, toggleTheme }) {
                 Ask the music assistant <span aria-hidden="true">→</span>
               </a>
             </div>
+          </section>
+
+          <section className="dashboard-section" aria-labelledby="music-dna-title">
+            <div className="dashboard-section-heading">
+              <div>
+                <p className="section-eyebrow">YOUR TASTE, MADE CLEAR</p>
+                <h2 id="music-dna-title">Personal Music DNA</h2>
+              </div>
+            </div>
+            {musicDnaLoading ? (
+              <p role="status">Building your listening profile…</p>
+            ) : musicDna?.enabled ? (
+              <div className="dashboard-empty grid gap-4">
+                <p>Your profile is based on the catalogue tracks and feedback linked to your account.</p>
+                <div className="grid grid-cols-2 gap-4 max-[520px]:grid-cols-1">
+                  {renderDnaItems("Top languages", musicDna.top_languages)}
+                  {renderDnaItems("Top genres", musicDna.top_genres)}
+                  {renderDnaItems("Favourite artists", musicDna.top_artists)}
+                  <div className="dashboard-dna-group">
+                    <h3>Listening signals</h3>
+                    <p>{musicDna.summary?.plays || 0} plays · {musicDna.summary?.likes || 0} likes · {musicDna.summary?.skips || 0} skips</p>
+                  </div>
+                </div>
+                <button type="button" className="dashboard-text-link" onClick={toggleMusicDna} disabled={musicDnaBusy}>
+                  {musicDnaBusy ? "Updating…" : "Turn off Music DNA"}
+                </button>
+              </div>
+            ) : (
+              <div className="dashboard-empty">
+                <span className="dashboard-empty-icon" aria-hidden="true">♫</span>
+                <div>
+                  <h3>Your taste profile is yours to enable</h3>
+                  <p>With your permission, MannKiDhun summarises your saved preferences and listening feedback into a private profile. You can turn it off at any time.</p>
+                </div>
+                <button type="button" className="dashboard-text-link" onClick={toggleMusicDna} disabled={musicDnaBusy}>
+                  {musicDnaBusy ? "Enabling…" : "Enable my Music DNA"}
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section className="dashboard-section" aria-labelledby="journal-title">
+            <div className="dashboard-section-heading">
+              <div>
+                <p className="section-eyebrow">A PRIVATE CHECK-IN</p>
+                <h2 id="journal-title">Mood & music journal</h2>
+              </div>
+            </div>
+            <form className="dashboard-empty grid gap-3" onSubmit={saveJournalEntry}>
+              <p>Record how you feel in your own words. Entries are private to your account; camera frames and expression estimates are never added here.</p>
+              <label className="grid gap-1">
+                How are you feeling?
+                <select value={journalMood} onChange={(event) => setJournalMood(event.target.value)}>
+                  <option value="neutral">Neutral</option>
+                  <option value="happy">Happy</option>
+                  <option value="sad">Sad</option>
+                  <option value="relaxed">Relaxed</option>
+                  <option value="energetic">Energetic</option>
+                  <option value="romantic">Romantic</option>
+                  <option value="focused">Focused</option>
+                  <option value="motivational">Motivated</option>
+                  <option value="devotional">Spiritual</option>
+                </select>
+              </label>
+              <label className="grid gap-1">
+                Note (optional)
+                <textarea
+                  value={journalNote}
+                  onChange={(event) => setJournalNote(event.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="A few words about your day or the music you want…"
+                />
+              </label>
+              <button type="submit" disabled={!journalMood}>Save private entry</button>
+            </form>
+            {journalError && <p className="assistant-error" role="alert">{journalError}</p>}
+            {journalStatus && <p className="assistant-status" role="status">{journalStatus}</p>}
+            {journalLoading ? (
+              <p role="status">Loading your journal…</p>
+            ) : journalEntries.length ? (
+              <div className="grid gap-3">
+                {journalEntries.slice(0, 5).map((entry) => (
+                  <article className="dashboard-empty flex items-start justify-between gap-3" key={entry.id}>
+                    <div>
+                      <h3>{entry.mood}</h3>
+                      {entry.note && <p>{entry.note}</p>}
+                      <p>{formatActivityDate(entry.created_at)}</p>
+                    </div>
+                    <button type="button" className="dashboard-text-link" onClick={() => deleteJournalEntry(entry.id)}>
+                      Delete
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p>No journal entries yet. Add a small check-in above.</p>
+            )}
           </section>
 
           <section
