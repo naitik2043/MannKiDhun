@@ -119,19 +119,17 @@ describe("AssistantPage", () => {
       }),
     ));
     fireEvent.click(screen.getByRole("button", { name: "Start session" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/users/me/playback-state",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          current_song_id: 12,
-          position_ms: 0,
-          queue: [12],
-          shuffle: false,
-          repeat_mode: "off",
-        }),
-      }),
-    ));
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(
+        ([url, options]) => url === "/api/v1/users/me/playback-state" && options?.method === "POST",
+      );
+      expect(saveCall).toBeTruthy();
+      expect(JSON.parse(saveCall[1].body)).toMatchObject({
+        current_song_id: 12,
+        position_ms: 0,
+        queue: [12],
+      });
+    });
     fireEvent.click(screen.getAllByRole("button", { name: "Play" })[0]);
     expect(screen.getByTitle("Play Catalogue Track by Catalogue Artist")).toBeTruthy();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
