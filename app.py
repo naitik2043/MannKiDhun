@@ -1055,9 +1055,17 @@ def _save_user_preferences(user, payload, onboarding_completed=None):
     preferred_genres = _normalize_list_field(payload.get("preferred_genres", []))
     preferred_listening_styles = _normalize_list_field(payload.get("preferred_listening_styles", []))
     favourite_artists = _normalize_list_field(payload.get("favourite_artists", []))
-    music_dna_enabled = payload.get("music_dna_enabled", False)
-    if type(music_dna_enabled) is not bool:
-        return jsonify({"error": "Music DNA consent must be true or false."}), 400
+    if "music_dna_enabled" in payload:
+        music_dna_enabled = payload["music_dna_enabled"]
+        if type(music_dna_enabled) is not bool:
+            return jsonify({"error": "Music DNA consent must be true or false."}), 400
+    else:
+        with closing(_connect_database(AUTH_DATABASE)) as connection:
+            existing_consent = connection.execute(
+                "SELECT music_dna_enabled FROM user_preferences WHERE user_id = ?",
+                (user["id"],),
+            ).fetchone()
+        music_dna_enabled = bool(existing_consent[0]) if existing_consent else False
     if onboarding_completed is None:
         onboarding_completed = payload.get("onboarding_completed")
 
@@ -1185,6 +1193,28 @@ def user_music_dna():
             "artists": _normalize_list_field(preference[3]),
         },
     })
+
+
+@app.route("/api/v1/users/me/music-dna/consent", methods=["POST"])
+def set_music_dna_consent():
+    user = get_authenticated_user()
+    if user is None:
+        return jsonify({"error": "Sign in to manage Music DNA."}), 401
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get("enabled")) is not bool:
+        return jsonify({"error": "Provide an enabled boolean."}), 400
+    with closing(_connect_database(AUTH_DATABASE)) as connection, connection:
+        connection.execute(
+            """
+            INSERT INTO user_preferences (user_id, music_dna_enabled, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                music_dna_enabled = excluded.music_dna_enabled,
+                updated_at = excluded.updated_at
+            """,
+            (user["id"], int(payload["enabled"]), _sqlite_now()),
+        )
+    return jsonify({"enabled": payload["enabled"]})
 
 
 @app.route("/api/v1/users/me/mood-journal", methods=["GET", "POST"])
@@ -1472,6 +1502,11 @@ def assistant_chat():
         not isinstance(target_mood, str) or target_mood.strip().lower() not in allowed_moods
     ):
         return jsonify({"error": "Choose a supported target mood."}), 400
+    current_mood = payload.get("current_mood")
+    if current_mood is not None and (
+        not isinstance(current_mood, str) or current_mood.strip().lower() not in allowed_moods
+    ):
+        return jsonify({"error": "Choose a supported current mood."}), 400
     context_vibes = {
         "studying": "focused",
         "travelling": "energetic",
@@ -1486,12 +1521,12 @@ def assistant_chat():
     elif mode == "explore":
         vibe = "neutral"
     else:
-        vibe = intent["mood"] or context_vibes.get(intent["context"], "neutral")
+        vibe = intent["mood"] or (current_mood.strip().lower() if current_mood else None) or context_vibes.get(intent["context"], "neutral")
 
     query_filters = {
         key: intent[key] for key in ("genre", "language", "artist") if intent[key]
     }
-    if mode != "explore" and mode == "match" and intent["mood"]:
+    if mode == "match" and (intent["mood"] or current_mood):
         query_filters["vibe"] = vibe
     if mode == "change":
         query_filters["vibe"] = vibe
