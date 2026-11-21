@@ -140,7 +140,7 @@ function App() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const { theme, toggleTheme } = useTheme();
 
-  const publicPlaylistMatch = path.match(/^\\/playlists\\/(\\d+)$/);
+  const publicPlaylistMatch = path.match(/^\/playlists\/(\d+)$/);
   if (publicPlaylistMatch) {
     return (
       <PublicPlaylistPage
