@@ -201,7 +201,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
 
   function playSong(song) {
     const trackId = song.provider_track_id;
-    if (song.provider === "youtube" && typeof trackId === "string" && /^[\\w-]{11}$/.test(trackId)) {
+    if (song.provider === "youtube" && typeof trackId === "string" && /^[\w-]{11}$/.test(trackId)) {
       recordPlay(song);
       setActiveSong(song);
       return;
