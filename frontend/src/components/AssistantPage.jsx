@@ -161,7 +161,6 @@ function AssistantPage({ user, theme, toggleTheme }) {
         {
           role: "assistant",
           text: result.message || "Your adaptive listening session is ready.",
-          recommendations: tracks,
         },
       ]);
       setActionStatus("Your adaptive session is saved to your listening queue. Start it when you're ready.");
@@ -693,6 +692,14 @@ function AssistantPage({ user, theme, toggleTheme }) {
                       ? `Now on ${sessionIndex + 1} of ${sessionTracks.length}: ${sessionTracks[sessionIndex].title}`
                       : "Your queue is ready. Start the first track when you want."}
                   </span>
+                  <ol className="assistant-session-track-list">
+                    {sessionTracks.map((track, index) => (
+                      <li key={track.id}>
+                        <span>{index + 1}. {track.title}</span>
+                        <span>{track.artist || "Unknown artist"}</span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => playSessionTrack(0)}>Start session</button>
