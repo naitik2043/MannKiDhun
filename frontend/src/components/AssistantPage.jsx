@@ -162,9 +162,24 @@ function AssistantPage({ user, theme, toggleTheme }) {
     }
   }
 
+  function recordPlay(song) {
+    fetch("/api/v1/users/me/listening-history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        song_id: song.id,
+        event_type: "play",
+        source: "assistant",
+      }),
+    }).catch(() => {
+      // Keep playback available even when history recording is temporarily offline.
+    });
+  }
+
   function playSong(song) {
     const trackId = song.provider_track_id;
-    if (song.provider === "youtube" && typeof trackId === "string" && /^[\w-]{11}$/.test(trackId)) {
+    if (song.provider === "youtube" && typeof trackId === "string" && /^[\\w-]{11}$/.test(trackId)) {
+      recordPlay(song);
       setActiveSong(song);
       return;
     }
@@ -172,6 +187,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
     try {
       const providerUrl = new URL(song.provider_url);
       if (providerUrl.protocol !== "https:") throw new Error("Unsupported playback URL.");
+      recordPlay(song);
       window.open(providerUrl.toString(), "_blank", "noopener,noreferrer");
     } catch {
       setError("This catalogue track does not have a supported playback link.");

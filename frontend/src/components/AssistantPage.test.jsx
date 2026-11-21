@@ -39,6 +39,9 @@ describe("AssistantPage", () => {
           ],
         });
       }
+      if (url === "/api/v1/users/me/listening-history" && options.method === "POST") {
+        return jsonResponse({ status: "ok", interaction: "play", song_id: 12 });
+      }
       if (url === "/api/v1/users/me/saved-songs") return jsonResponse({ saved: true });
       if (url === "/api/v1/users/me/playback-state") {
         return jsonResponse({ state: { queue: [], current_song_id: null } });
@@ -70,6 +73,13 @@ describe("AssistantPage", () => {
     expect(await screen.findByText("Catalogue Track")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     expect(screen.getByTitle("Play Catalogue Track by Catalogue Artist")).toBeTruthy();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/users/me/listening-history",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ song_id: 12, event_type: "play", source: "assistant" }),
+      }),
+    ));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("saved"));
 
