@@ -6,14 +6,14 @@ This roadmap separates shipped behaviour from the remaining product work. Implem
 
 - Manual mood selection and optional expression check-in; camera inference remains opt-in and raw frames are not saved.
 - **Match / Change / Explore** modes, including explicit current/target mood choices.
-- Catalogue-grounded music assistant, local intent fallback, explainable recommendations, Like / Not for me feedback, and signed positive/negative history ranking.
-- **Personal Music DNA**, disabled by default, with private summaries for languages, genres, artists, listening tags, and recurring vibes; listeners can download a JSON export or reset feedback/history while retaining saved songs and declared preferences.
-- **Mood & Music Journal**, with manually entered moods and private notes.
+- Catalogue-grounded assistant with local intent fallback, explainable recommendations, Like / Not for me feedback, and signed positive/negative history ranking.
+- **Personal Music DNA**, disabled by default, with private summaries for languages, genres, artists, listening tags, and recurring vibes. Users can download JSON, turn off consent, or reset feedback/history while preserving saved songs and declared preferences.
+- **Mood & Music Journal**, with manually entered moods, private notes, and mood-pattern summaries.
 - **Adaptive queue builder**, saved playback queue, and Start / Previous / Next controls. It is still a queue snapshot; tracks do not auto-advance when the YouTube embed ends.
 - Natural-language playlist editing for add, remove, and reorder actions.
 - Public playlists plus a community directory; invite-based viewer/editor collaboration with seven-day links, role changes, collaborator removal, and invite revocation.
 - Browser-based voice dictation in Hindi and English (India), plus browser Read aloud for assistant replies.
-- Verified initial regional catalogue additions for Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi, alongside existing Hindi and English starter tracks. Supported language intent parsing is broader than currently populated songs.
+- Verified regional catalogue additions for Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi, alongside Hindi and English starter tracks. Supported language intent parsing remains broader than populated songs.
 
 ## Remaining product work
 

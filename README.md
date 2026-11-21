@@ -10,26 +10,19 @@ MannKiDhun is an open-source music discovery app with a **JavaScript/React front
 
 ## What you can do
 
-- Choose a mood manually or request an optional, five-frame expression check-in. Camera estimates remain suggestions that you can ignore.
-- Discover tracks with the catalogue-grounded music assistant, including a rules-based fallback when the optional AI intent provider is unavailable.
-- See why a track was recommended, then use **Like** or **Not for me** to provide feedback that influences future history-aware ranking.
-- Play catalogue tracks through YouTube embeds or provider links; assistant playback activity is recorded in your listening history.
-- Save tracks, create playlists, and manage your preferences for language, genre, listening style, and artists.
-- Choose **Match**, **Change**, or **Explore** discovery modes, then build an adaptive listening queue using your selected preferences and (only when you opt in) listening activity.
-- Refine a playlist with natural-language requests such as “add peaceful music”, “more Hindi songs”, or “more variety”. Refinement adds matching catalogue tracks; it does not silently remove existing songs.
-- Enable **Personal Music DNA** to see private summaries of your favourite languages, genres, artists, listening styles, and recurring vibes from saved preferences and account activity. This is opt-in; you can download the profile as JSON, turn it off, or reset feedback/history while retaining saved songs and declared preferences.
-- Keep a private, manually written **Mood & Music Journal**, with mood-pattern summaries from recent entries. Journal entries are separate from camera inference and do not contain camera frames.
-- Use browser-supported voice input in English (India) or Hindi to dictate a text request.
-- Share a playlist publicly and browse the community directory. You can also invite editors or viewers with expiring links, change collaborator roles, and revoke access. Editors can add/remove/reorder tracks; visitors to public links remain read-only.
-- Refine playlists with natural-language commands to add tracks, remove a named/last track, or move a track to the beginning/end.
-- Build an adaptive queue and use Start, Previous, and Next controls. Queue progress is saved to your account; the current YouTube embed is not a full automatic streaming player.
-- Dictate requests in English (India) or Hindi using browser speech recognition, and use Read aloud for spoken assistant responses where the browser supports speech synthesis.
-- Explore Indian-language intent filters including Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati, Malayalam, Kannada, Urdu, and Sanskrit. The starter catalogue includes verified Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi additions; other languages still require more verified track entries.
-- Use the dashboard to review recent listening activity, saved playlists, Music DNA, and journal entries.
-- Use the responsive interface on desktop or mobile, with light and dark themes.
+- **Mood discovery:** choose a mood manually or opt into a five-frame expression check-in. Camera estimates are suggestions, never treated as the truth.
+- **Match / Change / Explore:** get tracks for your current vibe, move toward a target mood, or browse beyond mood filters.
+- **Explainable recommendations:** see why a track was selected, then use Like or Not for me feedback to influence history-aware ranking.
+- **Music Assistant:** discover tracks from the local catalogue using a natural-language text request, browser voice dictation (Hindi or English India), or Read aloud for spoken responses where the browser supports it.
+- **Adaptive sessions:** build a personalised queue, save it to playback state, and use Start / Previous / Next controls. Track advancement is manual; this is not yet a full automatic streaming player.
+- **Smart playlists:** create playlists and refine them with natural-language add, remove, and reorder commands.
+- **Collaboration:** invite editors or viewers with expiring links, change roles, revoke invitations, and remove collaborator access. Public playlists are discoverable through the Community page; visitors have read-only access.
+- **Personal Music DNA:** opt in to private summaries of preferred languages, genres, artists, listening styles, and recurring vibes. Download the summary as JSON, disable it, or reset feedback/history while preserving saved songs and declared preferences.
+- **Mood & Music Journal:** add private manual mood notes and review recent mood patterns. Journal content is never populated from camera frames.
+- **India-first discovery:** the starter catalogue includes verified Hindi, English, Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi tracks. More languages are recognised by the assistant than are currently populated in the catalogue.
+- **Personal library:** save songs, browse listening history, manage language/genre/style/artist preferences, and use responsive light/dark UI.
 
-**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service; playback is provided through YouTube embeds and external provider links. The saved queue stores track IDs and is not a synchronized, cross-session player. Adaptive sessions save a queue snapshot; they do not run a continuous player or reorder a playing queue in real time. Natural-language playlist editing adds, removes, or reorders catalogue tracks based on explicit commands. Collaborative editors can make changes through authenticated endpoints; public visitors remain read-only. Invitation links are bearer links that expire after seven days and can be revoked. Voice input and spoken responses depend on browser speech APIs. Language recognition is broader than the seeded catalogue, so some languages may still return few or no matches. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
-
+**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service. Playback uses YouTube embeds and external provider links. Adaptive sessions save queue snapshots and are manually advanced. Collaborative playlist editing is role-based, not real-time co-editing with presence or conflict resolution. Voice features depend on browser speech APIs. Tamil, Malayalam, and Marathi catalogue additions are present, while Kannada, Urdu, Sanskrit and other regional languages need more verified tracks. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
 ## Technology
 
 | Area | Technologies |
