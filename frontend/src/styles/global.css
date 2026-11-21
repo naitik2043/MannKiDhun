@@ -3724,3 +3724,323 @@ html[data-theme="dark"] .mobile-menu-toggle > span {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+
+/* Product increment controls: discovery, playlists, journal and Music DNA. */
+.assistant-discovery-controls,
+.assistant-playlist-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px 14px;
+  padding: 14px 19px;
+  color: #d7d2e0;
+  background: rgb(9 8 15 / 12%);
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+}
+
+.assistant-discovery-controls label,
+.assistant-refine-playlist label,
+.assistant-voice-controls label {
+  display: grid;
+  gap: 5px;
+  color: #cbc6d4;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.assistant-discovery-controls select,
+.assistant-refine-playlist select,
+.assistant-refine-playlist input,
+.assistant-voice-controls select,
+.assistant-journal-input,
+.dashboard-journal-form select,
+.dashboard-journal-form textarea {
+  min-height: 35px;
+  padding: 7px 10px;
+  color: #f5f2fa;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.assistant-discovery-controls button,
+.assistant-playlist-row button,
+.assistant-refine-playlist button {
+  min-height: 35px;
+  padding: 7px 12px;
+  color: #fff;
+  background: #7657e8;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.assistant-playlist-tools {
+  display: grid;
+  align-items: stretch;
+}
+
+.assistant-playlist-tools h2 {
+  margin: 0;
+  color: #eeeaf5;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.assistant-playlist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+  color: #cbc6d4;
+  font-size: 10px;
+}
+
+.assistant-public-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #bfb8d0 !important;
+}
+
+.assistant-public-toggle input {
+  min-height: auto;
+  flex: 0 0 auto;
+  accent-color: #9c83f4;
+}
+
+.assistant-refine-playlist {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+  padding-top: 9px;
+}
+
+.assistant-voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.assistant-track-explanation {
+  display: block;
+  margin-top: 4px;
+  color: #c9baf5;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.dashboard-dna-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashboard-dna-group h3 {
+  margin: 0;
+  color: #d9d2e8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dashboard-dna-chip {
+  display: inline-flex;
+  padding: 6px 10px;
+  color: #ded4ff;
+  background: rgb(118 87 232 / 14%);
+  border: 1px solid rgb(195 174 255 / 16%);
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.dashboard-journal-form {
+  display: grid;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.dashboard-journal-form label {
+  display: grid;
+  gap: 6px;
+  color: #d7d2e0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dashboard-journal-form button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 8px 14px;
+  color: #fff;
+  background: #7657e8;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dashboard-journal-form textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .assistant-discovery-controls,
+  .assistant-playlist-tools {
+    padding-right: 13px;
+    padding-left: 13px;
+  }
+
+  .assistant-refine-playlist {
+    grid-template-columns: 1fr;
+  }
+
+  .assistant-playlist-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .assistant-discovery-controls label {
+    width: 100%;
+  }
+}
+
+
+/* Collaborative playlists, speech output, and adaptive session controls. */
+.assistant-collaborator-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+}
+
+.assistant-collaborator-list h3 {
+  margin: 0;
+  color: #ded7ed;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.assistant-collaborator-list select {
+  min-height: 32px;
+  padding: 5px 8px;
+  color: #f5f2fa;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.assistant-collaborator-list button,
+.assistant-read-aloud,
+.assistant-session-player button {
+  min-height: 32px;
+  padding: 6px 10px;
+  color: #e2d9ff;
+  background: rgb(118 87 232 / 12%);
+  border: 1px solid rgb(195 174 255 / 22%);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.assistant-read-aloud {
+  margin-top: 8px;
+  padding: 4px 8px;
+  min-height: 27px;
+}
+
+.assistant-session-player {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 13px 20px 0;
+  padding: 13px;
+  color: #eeeaf5;
+  background: rgb(118 87 232 / 10%);
+  border: 1px solid rgb(195 174 255 / 16%);
+  border-radius: 12px;
+}
+
+.assistant-session-player > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.assistant-session-player strong {
+  font-size: 11px;
+}
+
+.assistant-session-player span {
+  color: #bdb6cc;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .assistant-session-player {
+    margin-right: 13px;
+    margin-left: 13px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+
+.assistant-session-track-list {
+  display: grid;
+  gap: 5px;
+  max-height: 135px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.assistant-session-track-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #e6e0f2;
+  font-size: 10px;
+}
+
+.assistant-session-track-list li span:last-child {
+  color: #a9a2b9;
+  text-align: right;
+}
+
+
+.assistant-invite-role {
+  display: grid;
+  justify-self: start;
+  gap: 6px;
+  color: #d7d2e0;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.assistant-invite-role select {
+  max-width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  color: #f5f2fa;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  font: inherit;
+}

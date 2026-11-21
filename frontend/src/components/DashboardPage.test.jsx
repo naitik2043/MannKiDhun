@@ -29,6 +29,8 @@ describe("DashboardPage", () => {
       if (url === "/api/v1/playlists") {
         return jsonResponse({ playlists: [{ id: 7, name: "Late Night Mix", track_count: 4 }] });
       }
+      if (url === "/api/v1/users/me/mood-journal") return jsonResponse({ entries: [] });
+      if (url === "/api/v1/users/me/music-dna") return jsonResponse({ enabled: false });
       throw new Error("Unexpected request: " + url);
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -50,12 +52,18 @@ describe("DashboardPage", () => {
     expect(screen.getByText("4 tracks")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/users/me/listening-history");
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/playlists");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/users/me/mood-journal");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/users/me/music-dna");
+    expect(screen.getByRole("heading", { name: "Personal Music DNA" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Mood & music journal" })).toBeTruthy();
   });
 
   it("shows helpful empty states when the listener has no activity yet", async () => {
     const fetchMock = vi.fn(async (url) => {
       if (url === "/api/v1/users/me/listening-history") return jsonResponse({ history: [] });
       if (url === "/api/v1/playlists") return jsonResponse({ playlists: [] });
+      if (url === "/api/v1/users/me/mood-journal") return jsonResponse({ entries: [] });
+      if (url === "/api/v1/users/me/music-dna") return jsonResponse({ enabled: false });
       throw new Error("Unexpected request: " + url);
     });
     vi.stubGlobal("fetch", fetchMock);

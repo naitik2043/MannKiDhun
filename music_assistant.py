@@ -30,7 +30,20 @@ GENRES = {
     "jazz": ("jazz",),
     "electronic": ("electronic", "edm"),
 }
-LANGUAGES = {"hindi": "Hindi", "english": "English"}
+LANGUAGES = {
+    "hindi": "Hindi",
+    "english": "English",
+    "punjabi": "Punjabi",
+    "tamil": "Tamil",
+    "telugu": "Telugu",
+    "bengali": "Bengali",
+    "marathi": "Marathi",
+    "gujarati": "Gujarati",
+    "malayalam": "Malayalam",
+    "kannada": "Kannada",
+    "urdu": "Urdu",
+    "sanskrit": "Sanskrit",
+}
 CONTEXTS = {
     "studying": ("studying", "study", "work", "working", "focus"),
     "travelling": ("travelling", "traveling", "travel", "journey", "driving"),

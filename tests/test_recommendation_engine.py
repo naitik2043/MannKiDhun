@@ -3,7 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from recommendation_engine import _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue
+from recommendation_engine import DEFAULT_SONGS, _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue, record_user_interaction
 
 
 class RecommendationEngineTests(unittest.TestCase):
@@ -93,6 +93,30 @@ class RecommendationEngineTests(unittest.TestCase):
         self.assertEqual(recommendations[0]["id"], 2)
         self.assertIn("skip feedback", recommendations[1]["explanation"].lower())
 
+    def test_latest_like_or_skip_feedback_replaces_the_opposite_signal(self):
+        fd, database_path = tempfile.mkstemp(suffix=".sqlite3")
+        os.close(fd)
+        try:
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    "CREATE TABLE user_song_interactions (user_id INTEGER, song_id INTEGER, interaction_type TEXT, source TEXT, position_ms INTEGER, duration_ms INTEGER, created_at TEXT, UNIQUE(user_id, song_id, interaction_type))"
+                )
+            record_user_interaction(database_path, 9, 55, "like")
+            record_user_interaction(database_path, 9, 55, "skip")
+            with sqlite3.connect(database_path) as connection:
+                rows = connection.execute(
+                    "SELECT interaction_type FROM user_song_interactions WHERE user_id = 9 AND song_id = 55"
+                ).fetchall()
+            self.assertEqual(rows, [("skip",)])
+            record_user_interaction(database_path, 9, 55, "like")
+            with sqlite3.connect(database_path) as connection:
+                rows = connection.execute(
+                    "SELECT interaction_type FROM user_song_interactions WHERE user_id = 9 AND song_id = 55"
+                ).fetchall()
+            self.assertEqual(rows, [("like",)])
+        finally:
+            os.unlink(database_path)
+
     def test_interaction_history_uses_positive_and_negative_feedback_weights(self):
         connection = sqlite3.connect(":memory:")
         try:
@@ -122,13 +146,24 @@ class RecommendationEngineTests(unittest.TestCase):
         os.close(fd)
         try:
             create_music_catalogue(database_path)
+            create_music_catalogue(database_path)
             with sqlite3.connect(database_path) as connection:
                 count = connection.execute("SELECT COUNT(*) FROM songs").fetchone()[0]
                 first = connection.execute(
                     "SELECT title, provider FROM songs ORDER BY id LIMIT 1"
                 ).fetchone()
+                regional_languages = {
+                    row[0] for row in connection.execute(
+                        "SELECT DISTINCT language FROM songs"
+                    ).fetchall()
+                }
             self.assertGreater(count, 0)
             self.assertIsNotNone(first)
+            self.assertTrue({
+                "Hindi", "English", "Punjabi", "Bengali", "Gujarati",
+                "Telugu", "Tamil", "Malayalam", "Marathi",
+            } <= regional_languages)
+            self.assertEqual(count, len(DEFAULT_SONGS))
         finally:
             pass
 

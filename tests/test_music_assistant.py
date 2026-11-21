@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from music_assistant import _request_provider_intent, extract_music_intent
+from music_assistant import LANGUAGES, _request_provider_intent, extract_music_intent
 
 
 class MusicAssistantIntentTests(unittest.TestCase):
@@ -93,6 +93,26 @@ class MusicAssistantIntentTests(unittest.TestCase):
         request = urlopen.call_args.args[0]
         self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
         self.assertEqual(intent, {"mood": "relaxed"})
+
+    def test_indian_regional_languages_are_supported_by_local_intent_parser(self):
+        cases = {
+            "Punjabi": "Recommend Punjabi music",
+            "Tamil": "Play Tamil songs",
+            "Telugu": "Find Telugu tracks",
+            "Bengali": "Suggest Bengali songs",
+            "Marathi": "Play Marathi music",
+            "Gujarati": "Find Gujarati songs",
+            "Malayalam": "Recommend Malayalam music",
+            "Kannada": "Play Kannada tracks",
+            "Urdu": "Suggest Urdu songs",
+        }
+        for language, message in cases.items():
+            with self.subTest(language=language):
+                intent, provider = extract_music_intent(message, [])
+                self.assertEqual(provider, "rules")
+                self.assertEqual(intent["language"], language)
+        self.assertEqual(LANGUAGES["punjabi"], "Punjabi")
+
 
 
 if __name__ == "__main__":

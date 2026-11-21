@@ -2,7 +2,7 @@
 
 **A more personal way to find music for the moment.**
 
-[Open the live demo](https://mannkidhun.onrender.com) · [Architecture](docs/ARCHITECTURE.md) · [API reference](docs/API_DOCUMENTATION.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security and privacy](docs/SECURITY.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
+[Open the live demo](https://mannkidhun.onrender.com) · [Community playlists](https://mannkidhun.onrender.com/community) · [Regional catalogue sources](docs/CATALOGUE_SOURCES.md) · [Architecture](docs/ARCHITECTURE.md) · [API reference](docs/API_DOCUMENTATION.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security and privacy](docs/SECURITY.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
 
 MannKiDhun is an open-source music discovery app with a **JavaScript/React frontend** and a **Python/Flask backend**. Choose a vibe yourself or optionally request an expression-based starting suggestion, then explore music that fits the moment.
 
@@ -10,16 +10,19 @@ MannKiDhun is an open-source music discovery app with a **JavaScript/React front
 
 ## What you can do
 
-- Choose a mood manually or request an optional, five-frame expression check-in. Camera estimates remain suggestions that you can ignore.
-- Discover tracks with the catalogue-grounded music assistant, including a rules-based fallback when the optional AI intent provider is unavailable.
-- See why a track was recommended, then use **Like** or **Not for me** to provide feedback that influences future history-aware ranking.
-- Play catalogue tracks through YouTube embeds or provider links; assistant playback activity is recorded in your listening history.
-- Save tracks, create playlists, and manage your preferences for language, genre, listening style, and artists.
-- Use the dashboard to review recent listening activity and your saved playlists.
-- Use the responsive interface on desktop or mobile, with light and dark themes.
+- **Mood discovery:** choose a mood manually or opt into a five-frame expression check-in. Camera estimates are suggestions, never treated as the truth.
+- **Match / Change / Explore:** get tracks for your current vibe, move toward a target mood, or browse beyond mood filters.
+- **Explainable recommendations:** see why a track was selected, then use Like or Not for me feedback to influence history-aware ranking.
+- **Music Assistant:** discover tracks from the local catalogue using a natural-language text request, browser voice dictation (Hindi or English India), or Read aloud for spoken responses where the browser supports it.
+- **Adaptive sessions:** build a personalised queue, save it to playback state, and use Start / Previous / Next controls. Track advancement is manual; this is not yet a full automatic streaming player.
+- **Smart playlists:** create playlists and refine them with natural-language add, remove, and reorder commands.
+- **Collaboration:** invite editors or viewers with expiring links, change roles, revoke invitations, and remove collaborator access. Public playlists are discoverable through the Community page; visitors have read-only access.
+- **Personal Music DNA:** opt in to private summaries of preferred languages, genres, artists, listening styles, and recurring vibes. Download the summary as JSON, disable it, or reset feedback/history while preserving saved songs and declared preferences.
+- **Mood & Music Journal:** add private manual mood notes and review recent mood patterns. Journal content is never populated from camera frames.
+- **India-first discovery:** the starter catalogue includes verified Hindi, English, Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi tracks. More languages are recognised by the assistant than are currently populated in the catalogue.
+- **Personal library:** save songs, browse listening history, manage language/genre/style/artist preferences, and use responsive light/dark UI.
 
-**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service; playback is provided through YouTube embeds and external provider links. The saved queue stores track IDs and is not a synchronized, cross-session player. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
-
+**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service. Playback uses YouTube embeds and external provider links. Adaptive sessions save queue snapshots and are manually advanced. Collaborative playlist editing is role-based, not real-time co-editing with presence or conflict resolution. Voice features depend on browser speech APIs. Tamil, Malayalam, and Marathi catalogue additions are present, while Kannada, Urdu, Sanskrit and other regional languages need more verified tracks. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
 ## Technology
 
 | Area | Technologies |
@@ -86,7 +89,7 @@ The Flask development server is for local use only. Production deployments shoul
 
 ## Architecture
 
-- `app.py` serves the built frontend and provides the Flask API, including authenticated listening-history and playlist endpoints.
+- `app.py` serves the built frontend and provides the Flask API, including authenticated preferences, listening history, mood journal, Music DNA, playlist refinement, adaptive sessions, and public playlist read endpoints.
 - `frontend/src/` contains the React application.
 - `recommendation_engine.py` manages the catalogue, recommendations, playlists, and listening data.
 - `music_assistant.py` parses search intent locally; an optional provider can be configured.

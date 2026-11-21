@@ -11,6 +11,8 @@ import IntroSection from "./components/IntroSection.jsx";
 import MoodDetectionCard from "./components/MoodDetectionCard.jsx";
 import MusicRecommendationCard from "./components/MusicRecommendationCard.jsx";
 import ProfilePage from "./components/ProfilePage.jsx";
+import PublicPlaylistPage from "./components/PublicPlaylistPage.jsx";
+import CommunityPage from "./components/CommunityPage.jsx";
 import SiteFooter from "./components/SiteFooter.jsx";
 import { useCamera } from "./hooks/useCamera.js";
 import { useMoodDetection } from "./hooks/useMoodDetection.js";
@@ -138,6 +140,45 @@ function AuthenticatedPage({ theme, toggleTheme, Page }) {
 function App() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const { theme, toggleTheme } = useTheme();
+
+  if (path === "/assistant") {
+    const inviteParams = new URLSearchParams(window.location.search);
+    const invitePlaylist = inviteParams.get("invite_playlist");
+    const inviteToken = inviteParams.get("invite_token");
+    if (invitePlaylist && inviteToken) {
+      window.sessionStorage.setItem(
+        "mannkidhun_pending_playlist_invite",
+        window.location.search,
+      );
+    }
+  }
+
+  useEffect(() => {
+    const pendingInvite = window.sessionStorage.getItem("mannkidhun_pending_playlist_invite");
+    if (
+      pendingInvite &&
+      path !== "/assistant" &&
+      path !== "/signin" &&
+      path !== "/signup"
+    ) {
+      window.location.replace("/assistant" + pendingInvite);
+    }
+  }, [path]);
+
+  if (path === "/community") {
+    return <CommunityPage theme={theme} toggleTheme={toggleTheme} />;
+  }
+
+  const publicPlaylistMatch = path.match(/^\/playlists\/(\d+)$/);
+  if (publicPlaylistMatch) {
+    return (
+      <PublicPlaylistPage
+        playlistId={Number(publicPlaylistMatch[1])}
+        theme={theme}
+        toggleTheme={toggleTheme}
+      />
+    );
+  }
 
   if (path === "/signin" || path === "/signup") {
     return (

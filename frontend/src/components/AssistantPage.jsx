@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Header from "./Header.jsx";
 import SiteFooter from "./SiteFooter.jsx";
 
@@ -8,6 +8,10 @@ const suggestedPrompts = [
   "I want energetic music for travelling",
   "Find motivational songs for studying",
 ];
+
+function canEditPlaylist(playlist) {
+  return Boolean(playlist?.is_owner || playlist?.role === "editor" || playlist?.role === "owner");
+}
 
 function AssistantPage({ user, theme, toggleTheme }) {
   const [messages, setMessages] = useState([
@@ -27,21 +31,72 @@ function AssistantPage({ user, theme, toggleTheme }) {
   const [selectedPlaylists, setSelectedPlaylists] = useState({});
   const [activeSong, setActiveSong] = useState(null);
   const [actionStatus, setActionStatus] = useState("");
+  const [mode, setMode] = useState("match");
+  const [currentMood, setCurrentMood] = useState("");
+  const [targetMood, setTargetMood] = useState("relaxed");
+  const [isPublicPlaylist, setIsPublicPlaylist] = useState(false);
+  const [refinePlaylistId, setRefinePlaylistId] = useState("");
+  const [collaboratorsByPlaylist, setCollaboratorsByPlaylist] = useState({});
+  const [inviteRole, setInviteRole] = useState("editor");
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [sessionTracks, setSessionTracks] = useState([]);
+  const [sessionIndex, setSessionIndex] = useState(-1);
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/v1/playlists")
-      .then(async (response) => {
+
+    async function loadPlaylists() {
+      const params = new URLSearchParams(window.location.search);
+      const invitePlaylist = params.get("invite_playlist");
+      const inviteToken = params.get("invite_token");
+
+      if (invitePlaylist && inviteToken && /^\\d+$/.test(invitePlaylist)) {
+        try {
+          const inviteResponse = await fetch(`/api/v1/playlists/${invitePlaylist}/invites/accept`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: inviteToken }),
+          });
+          const inviteResult = await inviteResponse.json().catch(() => null);
+          if (!inviteResponse.ok) {
+            throw new Error(inviteResult?.error || "This playlist invitation could not be accepted.");
+          }
+          if (active) {
+            setActionStatus(`You joined ${inviteResult.playlist.name} as a ${inviteResult.playlist.role}.`);
+          }
+          window.sessionStorage.removeItem("mannkidhun_pending_playlist_invite");
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (inviteError) {
+          window.sessionStorage.removeItem("mannkidhun_pending_playlist_invite");
+          window.history.replaceState({}, document.title, window.location.pathname);
+          if (active) setError(inviteError.message || "This playlist invitation could not be accepted.");
+        }
+      }
+
+      try {
+        const response = await fetch("/api/v1/playlists");
         const result = await response.json().catch(() => null);
         if (!response.ok) throw new Error(result?.error || "Could not load playlists.");
         if (active) setPlaylists(result.playlists || []);
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.message);
-      });
+      } catch (requestError) {
+        if (active) setError(requestError.message || "Could not load playlists.");
+      }
+    }
+
+    loadPlaylists();
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => () => {
+    if (recognitionRef.current) recognitionRef.current.stop();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
 
   async function ask(prompt = message) {
@@ -62,6 +117,9 @@ function AssistantPage({ user, theme, toggleTheme }) {
           previous_intent: lastIntent,
           use_preferences: usePreferences,
           use_history: useHistory,
+          mode,
+          current_mood: currentMood || null,
+          target_mood: mode === "change" ? targetMood : null,
         }),
       });
       const result = await response.json().catch(() => null);
@@ -83,6 +141,228 @@ function AssistantPage({ user, theme, toggleTheme }) {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function buildAdaptiveSession() {
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson("/api/v1/users/me/adaptive-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          mood: mode === "change" ? targetMood : currentMood || null,
+          use_preferences: usePreferences,
+          use_history: useHistory,
+          limit: 8,
+        }),
+      });
+      const tracks = Array.isArray(result.recommendations) ? result.recommendations : [];
+      setSessionTracks(tracks);
+      setSessionIndex(-1);
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: result.message || "Your adaptive listening session is ready.",
+        },
+      ]);
+      setActionStatus("Your adaptive session is saved to your listening queue. Start it when you're ready.");
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function refinePlaylist(event) {
+    event.preventDefault();
+    const instruction = refineInstruction.trim();
+    if (!refinePlaylistId || !instruction) return;
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${refinePlaylistId}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction }),
+      });
+      setPlaylists((current) => current.map((playlist) =>
+        playlist.id === Number(refinePlaylistId)
+          ? { ...playlist, track_count: result.playlist?.tracks?.length ?? playlist.track_count }
+          : playlist
+      ));
+      setRefineInstruction("");
+      if (result.removed_count) {
+        setActionStatus(`Removed ${result.removed_count} track(s) from ${result.playlist.name}.`);
+      } else if (result.reordered) {
+        setActionStatus(`Moved ${result.moved_track.title} in ${result.playlist.name}.`);
+      } else {
+        setActionStatus(
+          result.added_count
+            ? `Added ${result.added_count} track(s) to ${result.playlist.name}.`
+            : "No new catalogue tracks matched that instruction. Try a mood, language, genre, or artist.",
+        );
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function loadCollaborators(playlist) {
+    setError("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${playlist.id}/collaborators`);
+      setCollaboratorsByPlaylist((current) => ({ ...current, [playlist.id]: result.collaborators || [] }));
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function updateCollaboratorRole(playlist, collaborator, role) {
+    try {
+      await requestJson(`/api/v1/playlists/${playlist.id}/collaborators/${collaborator.user_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      await loadCollaborators(playlist);
+      setActionStatus(`${collaborator.name}'s access is now ${role}.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function removeCollaborator(playlist, collaborator) {
+    try {
+      await requestJson(`/api/v1/playlists/${playlist.id}/collaborators/${collaborator.user_id}`, {
+        method: "DELETE",
+      });
+      await loadCollaborators(playlist);
+      setActionStatus(`${collaborator.name} no longer has access to this playlist.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function createCollaboratorInvite(playlist) {
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${playlist.id}/invites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: inviteRole }),
+      });
+      try {
+        await navigator.clipboard.writeText(result.invite_url);
+        setActionStatus(inviteRole + " invitation link copied. It expires on " + result.expires_at + ".");
+      } catch {
+        setActionStatus("Share this " + inviteRole + " invitation link: " + result.invite_url);
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function togglePlaylistSharing(playlist) {
+    setError("");
+    setActionStatus("");
+    try {
+      const result = await requestJson(`/api/v1/playlists/${playlist.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: !playlist.is_public }),
+      });
+      const updated = result.playlist || { ...playlist, is_public: !playlist.is_public };
+      setPlaylists((current) => current.map((item) => item.id === playlist.id ? updated : item));
+      if (updated.is_public) {
+        const shareUrl = `${window.location.origin}/playlists/${playlist.id}`;
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          setActionStatus("Public playlist link copied: " + shareUrl);
+        } catch {
+          setActionStatus("Playlist is public. Share this link: " + shareUrl);
+        }
+      } else {
+        setActionStatus("Playlist is private again.");
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  async function playSessionTrack(index) {
+    if (index < 0 || index >= sessionTracks.length) return;
+    const song = sessionTracks[index];
+    setSessionIndex(index);
+    playSong(song);
+    try {
+      const { state } = await requestJson("/api/v1/users/me/playback-state");
+      await requestJson("/api/v1/users/me/playback-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...state,
+          current_song_id: song.id,
+          position_ms: 0,
+          queue: sessionTracks.map((track) => track.id),
+        }),
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  function speakMessage(text) {
+    if (!text || !("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance !== "function") {
+      setVoiceError("Spoken responses are not supported in this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    utterance.lang = voiceLanguage;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setVoiceError("");
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function stopSpeaking() {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+  }
+
+  function startVoiceInput() {
+    setVoiceError("");
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceError("Voice input is not supported in this browser. You can type your request instead.");
+      return;
+    }
+    if (recognitionRef.current) recognitionRef.current.stop();
+    const recognition = new SpeechRecognition();
+    recognition.lang = voiceLanguage;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript;
+      if (transcript) setMessage((current) => (current ? current + " " : "") + transcript);
+    };
+    recognition.onerror = () => setVoiceError("We couldn't capture that voice request. Please try again.");
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    try {
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      setVoiceError("Voice input could not start. Please try again.");
     }
   }
 
@@ -175,10 +455,11 @@ function AssistantPage({ user, theme, toggleTheme }) {
       const result = await requestJson("/api/v1/playlists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, is_public: isPublicPlaylist }),
       });
-      setPlaylists((current) => [...current, result.playlist]);
+      setPlaylists((current) => [...current, { ...result.playlist, role: "owner", is_owner: true }]);
       setNewPlaylistName("");
+      setIsPublicPlaylist(false);
       setActionStatus(`${result.playlist.name} was created.`);
     } catch (requestError) {
       setError(requestError.message);
@@ -257,6 +538,50 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 Clear conversation
               </button>
             </div>
+            <section className="assistant-discovery-controls" aria-label="Discovery mode">
+              <label>
+                Discovery mode
+                <select value={mode} onChange={(event) => setMode(event.target.value)}>
+                  <option value="match">Match my mood</option>
+                  <option value="change">Change my mood</option>
+                  <option value="explore">Explore freely</option>
+                </select>
+              </label>
+              {mode === "match" && (
+                <label>
+                  Current mood (optional)
+                  <select value={currentMood} onChange={(event) => setCurrentMood(event.target.value)}>
+                    <option value="">Use the mood in my request</option>
+                    <option value="happy">Happy</option>
+                    <option value="sad">Sad</option>
+                    <option value="relaxed">Relaxed</option>
+                    <option value="energetic">Energetic</option>
+                    <option value="romantic">Romantic</option>
+                    <option value="focused">Focused</option>
+                    <option value="motivational">Motivational</option>
+                    <option value="devotional">Devotional</option>
+                  </select>
+                </label>
+              )}
+              {mode === "change" && (
+                <label>
+                  Mood you want to move toward
+                  <select value={targetMood} onChange={(event) => setTargetMood(event.target.value)}>
+                    <option value="happy">Happy</option>
+                    <option value="sad">Sad</option>
+                    <option value="relaxed">Relaxed</option>
+                    <option value="energetic">Energetic</option>
+                    <option value="romantic">Romantic</option>
+                    <option value="focused">Focused</option>
+                    <option value="motivational">Motivational</option>
+                    <option value="devotional">Devotional</option>
+                  </select>
+                </label>
+              )}
+              <button type="button" onClick={buildAdaptiveSession} disabled={loading}>
+                Build adaptive session
+              </button>
+            </section>
             <form id="assistant-playlists" className="assistant-create-playlist" onSubmit={createPlaylist}>
               <label htmlFor="assistant-playlist-name">Create a playlist</label>
               <div>
@@ -269,7 +594,103 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 />
                 <button type="submit" disabled={!newPlaylistName.trim()}>Create</button>
               </div>
+              <label className="assistant-public-toggle">
+                <input
+                  type="checkbox"
+                  checked={isPublicPlaylist}
+                  onChange={(event) => setIsPublicPlaylist(event.target.checked)}
+                />
+                Make this playlist public and shareable
+              </label>
             </form>
+            {playlists.length > 0 && (
+              <section className="assistant-playlist-tools" aria-label="Playlist tools">
+                <h2>Your playlists</h2>
+                {playlists.some((playlist) => playlist.is_owner) && (
+                  <label className="assistant-invite-role">
+                    New collaborator role
+                    <select
+                      value={inviteRole}
+                      onChange={(event) => setInviteRole(event.target.value)}
+                    >
+                      <option value="editor">Editor — can add, remove, and reorder tracks</option>
+                      <option value="viewer">Viewer — read-only access</option>
+                    </select>
+                  </label>
+                )}
+                {playlists.map((playlist) => (
+                  <div className="assistant-playlist-row" key={playlist.id}>
+                    <span>
+                      {playlist.name} · {playlist.track_count || 0} tracks
+                      {playlist.is_owner ? " · Owner" : " · " + (playlist.role || "Collaborator")}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {playlist.is_owner && (
+                        <>
+                          <button type="button" onClick={() => createCollaboratorInvite(playlist)}>
+                            Invite {inviteRole}
+                          </button>
+                          <button type="button" onClick={() => loadCollaborators(playlist)}>
+                            Manage collaborators
+                          </button>
+                          <button type="button" onClick={() => togglePlaylistSharing(playlist)}>
+                            {playlist.is_public ? "Copy public link / Make private" : "Make public"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {playlists.filter((playlist) => playlist.is_owner && collaboratorsByPlaylist[playlist.id]).map((playlist) => (
+                  <div className="assistant-collaborator-list" key={`collaborators-${playlist.id}`}>
+                    <h3>People editing {playlist.name}</h3>
+                    {collaboratorsByPlaylist[playlist.id].length ? collaboratorsByPlaylist[playlist.id].map((collaborator) => (
+                      <div className="assistant-playlist-row" key={collaborator.user_id}>
+                        <span>{collaborator.name}</span>
+                        <select
+                          aria-label={`Role for ${collaborator.name}`}
+                          value={collaborator.role}
+                          onChange={(event) => updateCollaboratorRole(playlist, collaborator, event.target.value)}
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="editor">Editor</option>
+                        </select>
+                        <button type="button" onClick={() => removeCollaborator(playlist, collaborator)}>
+                          Remove access
+                        </button>
+                      </div>
+                    )) : <p>No collaborators have joined yet.</p>}
+                  </div>
+                ))}
+                {playlists.some(canEditPlaylist) && (
+                  <form className="assistant-refine-playlist" onSubmit={refinePlaylist}>
+                  <label>
+                    Refine a playlist with words
+                    <select
+                      value={refinePlaylistId}
+                      onChange={(event) => setRefinePlaylistId(event.target.value)}
+                      required
+                    >
+                      <option value="">Choose playlist</option>
+                      {playlists.filter(canEditPlaylist).map((playlist) => (
+                        <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <input
+                    value={refineInstruction}
+                    onChange={(event) => setRefineInstruction(event.target.value)}
+                    maxLength={200}
+                    placeholder="Try “add peaceful music”, “remove last song”, or “move Believer to the top”"
+                    aria-label="Playlist refinement instruction"
+                  />
+                    <button type="submit" disabled={!refinePlaylistId || refineInstruction.trim().length < 3}>
+                      Refine playlist
+                    </button>
+                  </form>
+                )}
+              </section>
+            )}
 
             {activeSong && (
               <div className="assistant-player">
@@ -282,11 +703,57 @@ function AssistantPage({ user, theme, toggleTheme }) {
                 />
               </div>
             )}
+            {sessionTracks.length > 0 && (
+              <div className="assistant-session-player" aria-label="Adaptive listening session">
+                <div>
+                  <strong>Adaptive session · {sessionTracks.length} tracks</strong>
+                  <span>
+                    {sessionIndex >= 0
+                      ? `Now on ${sessionIndex + 1} of ${sessionTracks.length}: ${sessionTracks[sessionIndex].title}`
+                      : "Your queue is ready. Start the first track when you want."}
+                  </span>
+                  <ol className="assistant-session-track-list">
+                    {sessionTracks.map((track, index) => (
+                      <li key={track.id}>
+                        <span>{index + 1}. {track.title}</span>
+                        <span>{track.artist || "Unknown artist"}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => playSessionTrack(0)}>Start session</button>
+                  <button
+                    type="button"
+                    onClick={() => playSessionTrack(sessionIndex - 1)}
+                    disabled={sessionIndex <= 0}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => playSessionTrack(sessionIndex + 1)}
+                    disabled={sessionIndex < 0 || sessionIndex >= sessionTracks.length - 1}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="assistant-messages" aria-live="polite">
               {messages.map((entry, index) => (
                 <article className={`assistant-message assistant-message-${entry.role}`} key={`${entry.role}-${index}`}>
                   <p>{entry.text}</p>
+                  {entry.role === "assistant" && (
+                    <button
+                      type="button"
+                      className="assistant-read-aloud"
+                      onClick={() => speakMessage(entry.text)}
+                    >
+                      Read aloud
+                    </button>
+                  )}
                   {entry.recommendations?.length > 0 && (
                     <div className="assistant-track-list">
                       {entry.recommendations.map((song) => (
@@ -316,7 +783,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                             <button type="button" onClick={() => sendFeedback(song, "like")}>Like</button>
                             <button type="button" onClick={() => sendFeedback(song, "skip")}>Not for me</button>
                             <button type="button" onClick={() => addToQueue(song)}>Add to queue</button>
-                            {playlists.length > 0 && (
+                            {playlists.some(canEditPlaylist) && (
                               <div className="assistant-playlist-action">
                                 <select
                                   aria-label={`Playlist for ${song.title}`}
@@ -327,7 +794,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                                   }))}
                                 >
                                   <option value="">Choose playlist</option>
-                                  {playlists.map((playlist) => (
+                                  {playlists.filter(canEditPlaylist).map((playlist) => (
                                     <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
                                   ))}
                                 </select>
@@ -384,9 +851,32 @@ function AssistantPage({ user, theme, toggleTheme }) {
                   placeholder="Try “peaceful Hindi music for the evening”…"
                   disabled={loading}
                 />
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  disabled={loading || isListening}
+                  aria-label="Use voice input"
+                >
+                  {isListening ? "Listening…" : "🎙 Voice"}
+                </button>
                 <button type="submit" disabled={loading || !message.trim()}>
                   {loading ? "Thinking…" : "Send"}
                 </button>
+              </div>
+              <div className="assistant-voice-controls">
+                <label htmlFor="assistant-voice-language">Voice language</label>
+                <select
+                  id="assistant-voice-language"
+                  value={voiceLanguage}
+                  onChange={(event) => setVoiceLanguage(event.target.value)}
+                >
+                  <option value="en-IN">English (India)</option>
+                  <option value="hi-IN">Hindi</option>
+                </select>
+                {voiceError && <p className="assistant-error" role="alert">{voiceError}</p>}
+                {isSpeaking && (
+                  <button type="button" onClick={stopSpeaking}>Stop spoken response</button>
+                )}
               </div>
               <div className="assistant-controls">
                 <label>

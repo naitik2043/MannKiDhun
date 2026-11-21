@@ -17,11 +17,31 @@ function jsonResponse(body, ok = true) {
 describe("AssistantPage", () => {
   it("shows catalogue recommendations, saves a song, and clears chat", async () => {
     const fetchMock = vi.fn(async (url, options = {}) => {
+      if (url === "/api/v1/playlists/3/invites" && options.method === "POST") {
+        return jsonResponse({
+          invite_url: "http://localhost/assistant?invite_playlist=3&invite_token=long-secure-token",
+          expires_at: "2026-11-29 12:00:00",
+        });
+      }
       if (url === "/api/v1/playlists" && options.method === "POST") {
         return jsonResponse({ playlist: { id: 3, name: "Evening Mix" } });
       }
       if (url === "/api/v1/playlists") {
         return jsonResponse({ playlists: [] });
+      }
+      if (url === "/api/v1/users/me/adaptive-session" && options.method === "POST") {
+        return jsonResponse({
+          message: "Adaptive session ready.",
+          recommendations: [{
+            id: 12,
+            title: "Session track",
+            artist: "Catalogue Artist",
+            provider: "youtube",
+            provider_track_id: "AbcdEF12345",
+            provider_url: "https://music.example/session-track",
+          }],
+          state: { queue: [12] },
+        });
       }
       if (url === "/api/v1/assistant/chat") {
         return jsonResponse({
@@ -66,6 +86,18 @@ describe("AssistantPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("created"));
+    fireEvent.change(screen.getByRole("combobox", { name: "New collaborator role" }), {
+      target: { value: "editor" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Invite editor" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("invite_token=long-secure-token"));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/playlists/3/invites",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ role: "editor" }),
+      }),
+    );
 
     fireEvent.change(screen.getByLabelText("Your music request"), {
       target: { value: "peaceful music" },
@@ -73,7 +105,35 @@ describe("AssistantPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Catalogue Track")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Discovery mode" }), { target: { value: "change" } });
+    fireEvent.change(screen.getByLabelText("Mood you want to move toward"), { target: { value: "happy" } });
+    fireEvent.click(screen.getByRole("button", { name: "Build adaptive session" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/users/me/adaptive-session",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          mode: "change",
+          mood: "happy",
+          use_preferences: false,
+          use_history: false,
+          limit: 8,
+        }),
+      }),
+    ));
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(
+        ([url, options]) => url === "/api/v1/users/me/playback-state" && options?.method === "POST",
+      );
+      expect(saveCall).toBeTruthy();
+      expect(JSON.parse(saveCall[1].body)).toMatchObject({
+        current_song_id: 12,
+        position_ms: 0,
+        queue: [12],
+      });
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Play" })[0]);
     expect(screen.getByTitle("Play Catalogue Track by Catalogue Artist")).toBeTruthy();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/users/me/listening-history",
