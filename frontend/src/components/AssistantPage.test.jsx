@@ -86,6 +86,9 @@ describe("AssistantPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("created"));
+    fireEvent.change(screen.getByRole("combobox", { name: "New collaborator role" }), {
+      target: { value: "editor" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Invite editor" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("invite_token=long-secure-token"));
     expect(fetchMock).toHaveBeenCalledWith(

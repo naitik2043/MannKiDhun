@@ -37,6 +37,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
   const [isPublicPlaylist, setIsPublicPlaylist] = useState(false);
   const [refinePlaylistId, setRefinePlaylistId] = useState("");
   const [collaboratorsByPlaylist, setCollaboratorsByPlaylist] = useState({});
+  const [inviteRole, setInviteRole] = useState("editor");
   const [refineInstruction, setRefineInstruction] = useState("");
   const [voiceLanguage, setVoiceLanguage] = useState("en-IN");
   const [isListening, setIsListening] = useState(false);
@@ -251,13 +252,13 @@ function AssistantPage({ user, theme, toggleTheme }) {
       const result = await requestJson(`/api/v1/playlists/${playlist.id}/invites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "editor" }),
+        body: JSON.stringify({ role: inviteRole }),
       });
       try {
         await navigator.clipboard.writeText(result.invite_url);
-        setActionStatus("Editor invitation link copied. It expires on " + result.expires_at + ".");
+        setActionStatus(inviteRole + " invitation link copied. It expires on " + result.expires_at + ".");
       } catch {
-        setActionStatus("Share this editor invitation link: " + result.invite_url);
+        setActionStatus("Share this " + inviteRole + " invitation link: " + result.invite_url);
       }
     } catch (requestError) {
       setError(requestError.message);
@@ -605,6 +606,18 @@ function AssistantPage({ user, theme, toggleTheme }) {
             {playlists.length > 0 && (
               <section className="assistant-playlist-tools" aria-label="Playlist tools">
                 <h2>Your playlists</h2>
+                {playlists.some((playlist) => playlist.is_owner) && (
+                  <label className="assistant-invite-role">
+                    New collaborator role
+                    <select
+                      value={inviteRole}
+                      onChange={(event) => setInviteRole(event.target.value)}
+                    >
+                      <option value="editor">Editor — can add, remove, and reorder tracks</option>
+                      <option value="viewer">Viewer — read-only access</option>
+                    </select>
+                  </label>
+                )}
                 {playlists.map((playlist) => (
                   <div className="assistant-playlist-row" key={playlist.id}>
                     <span>
@@ -615,7 +628,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                       {playlist.is_owner && (
                         <>
                           <button type="button" onClick={() => createCollaboratorInvite(playlist)}>
-                            Invite editor
+                            Invite {inviteRole}
                           </button>
                           <button type="button" onClick={() => loadCollaborators(playlist)}>
                             Manage collaborators
