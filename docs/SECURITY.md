@@ -9,6 +9,7 @@
 - Passwords are stored with Werkzeug password hashing.
 - Session cookies are HttpOnly and SameSite=Lax; Secure cookies are opt-in through `MANNKIDHUN_COOKIE_SECURE=1`.
 - Responses include `X-Content-Type-Options: nosniff`, a strict-origin referrer policy, same-origin framing protection, and a Permissions Policy that limits camera/microphone access to this origin and disables geolocation. HSTS is emitted when secure cookies are enabled.
+- API HTTP errors use JSON responses; unexpected server exceptions are logged internally and return a generic message without exposing stack traces or implementation details.
 - SQL statements use SQLite parameter binding for user-controlled values.
 - Account/library routes use the authenticated user ID for ownership-scoped reads and updates.
 - Password reset tokens are not returned by the forgot-password endpoint. Until email delivery is implemented, password recovery is unavailable.

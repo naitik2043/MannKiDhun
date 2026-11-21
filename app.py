@@ -20,6 +20,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 from flask import Flask, abort, jsonify, request, send_from_directory, session
+from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from database_migrations import run_migrations
@@ -1585,6 +1586,30 @@ def popular_artists():
             "SELECT id, name FROM artists ORDER BY name LIMIT 20"
         ).fetchall()
     return jsonify({"artists": [{"id": row[0], "name": row[1]} for row in rows]})
+
+
+def _is_api_request():
+    return request.path.startswith("/api/") or request.path == "/predict"
+
+
+@app.errorhandler(HTTPException)
+def handle_http_exception(error):
+    """Keep HTTP errors JSON-shaped for API callers without changing page errors."""
+    if _is_api_request():
+        return jsonify({"error": error.description or error.name}), error.code
+    return error
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_exception(error):
+    """Log server-side details while returning a safe response to API clients."""
+    if isinstance(error, HTTPException):
+        return handle_http_exception(error)
+
+    app.logger.exception("Unhandled application error for %s", request.path)
+    if _is_api_request():
+        return jsonify({"error": "An unexpected server error occurred. Please try again."}), 500
+    return "Internal Server Error", 500
 
 
 @app.errorhandler(413)
