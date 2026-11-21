@@ -948,6 +948,52 @@ class ApiRouteTests(unittest.TestCase):
         self.assertTrue(shared.json["playlist"]["is_public"])
         self.assertEqual(shared.json["playlist"]["name"], "Shared mix")
 
+    def test_playlist_refinement_can_remove_and_reorder_tracks_by_instruction(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "Playlist Editor",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        playlist = client.post(
+            "/api/v1/playlists", json={"name": "Editable playlist"}
+        ).json["playlist"]
+        playlist_id = playlist["id"]
+        with closing(mood_app._connect_database(mood_app.AUTH_DATABASE)) as connection:
+            tracks = connection.execute(
+                "SELECT id, title FROM songs ORDER BY id LIMIT 3"
+            ).fetchall()
+        self.assertGreaterEqual(len(tracks), 2)
+
+        for song_id, _title in tracks[:2]:
+            self.assertEqual(
+                client.post(
+                    f"/api/v1/playlists/{playlist_id}/tracks",
+                    json={"song_id": song_id},
+                ).status_code,
+                200,
+            )
+
+        second_title = tracks[1][1]
+        moved = client.post(
+            f"/api/v1/playlists/{playlist_id}/refine",
+            json={"instruction": f"move {second_title} to the top"},
+        )
+        self.assertEqual(moved.status_code, 200)
+        self.assertTrue(moved.json["reordered"])
+        self.assertEqual(moved.json["playlist"]["tracks"][0]["id"], tracks[1][0])
+
+        removed = client.post(
+            f"/api/v1/playlists/{playlist_id}/refine",
+            json={"instruction": "remove last song"},
+        )
+        self.assertEqual(removed.status_code, 200)
+        self.assertEqual(removed.json["removed_count"], 1)
+        self.assertEqual(len(removed.json["playlist"]["tracks"]), 1)
+
     def test_playlist_refinement_adds_catalogue_tracks_matching_the_request(self):
         client = mood_app.app.test_client()
         email = f"{uuid.uuid4().hex}@example.com"

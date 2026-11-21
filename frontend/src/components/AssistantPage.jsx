@@ -178,11 +178,17 @@ function AssistantPage({ user, theme, toggleTheme }) {
           : playlist
       ));
       setRefineInstruction("");
-      setActionStatus(
-        result.added_count
-          ? `Added ${result.added_count} track(s) to ${result.playlist.name}.`
-          : "No new catalogue tracks matched that instruction. Try a mood, language, genre, or artist.",
-      );
+      if (result.removed_count) {
+        setActionStatus(`Removed ${result.removed_count} track(s) from ${result.playlist.name}.`);
+      } else if (result.reordered) {
+        setActionStatus(`Moved ${result.moved_track.title} in ${result.playlist.name}.`);
+      } else {
+        setActionStatus(
+          result.added_count
+            ? `Added ${result.added_count} track(s) to ${result.playlist.name}.`
+            : "No new catalogue tracks matched that instruction. Try a mood, language, genre, or artist.",
+        );
+      }
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -544,7 +550,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                     value={refineInstruction}
                     onChange={(event) => setRefineInstruction(event.target.value)}
                     maxLength={200}
-                    placeholder="Try “make it calmer” or “more Punjabi songs”"
+                    placeholder="Try “add peaceful music”, “remove last song”, or “move Believer to the top”"
                     aria-label="Playlist refinement instruction"
                   />
                   <button type="submit" disabled={!refinePlaylistId || refineInstruction.trim().length < 3}>

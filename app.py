@@ -1955,13 +1955,78 @@ def refine_playlist(playlist_id):
     playlist = get_playlist_details(str(AUTH_DATABASE), playlist_id, user_id=user["id"])
     if playlist is None:
         return jsonify({"error": "Playlist not found."}), 404
+
+    command = instruction.strip()
+    normalized = command.casefold()
+    track_list = playlist["tracks"]
+
+    remove_command = any(term in normalized for term in ("remove ", "delete ", "take out ", "drop "))
+    if remove_command:
+        if any(term in normalized for term in ("last song", "last track", "most recent")):
+            target = track_list[-1] if track_list else None
+        else:
+            target = next(
+                (
+                    track for track in track_list
+                    if str(track.get("title") or "").casefold() in normalized
+                ),
+                None,
+            )
+        if target is None:
+            return jsonify({"error": "I couldn't identify a track to remove. Name a song or say 'remove last song'."}), 400
+        removed = remove_song_from_playlist(
+            str(AUTH_DATABASE), user["id"], playlist_id, int(target["id"])
+        )
+        if not removed:
+            return jsonify({"error": "That track could not be removed from this playlist."}), 409
+        updated_playlist = get_playlist_details(str(AUTH_DATABASE), playlist_id, user_id=user["id"])
+        return jsonify({
+            "playlist": updated_playlist,
+            "removed": [target],
+            "removed_count": 1,
+            "added": [],
+            "added_count": 0,
+            "reordered": False,
+        })
+
+    move_command = any(term in normalized for term in ("move ", "put ", "place ", "bring ")) and any(
+        term in normalized for term in ("first", "top", "beginning", "start", "last", "bottom", "end")
+    )
+    if move_command:
+        target = next(
+            (
+                track for track in track_list
+                if str(track.get("title") or "").casefold() in normalized
+            ),
+            None,
+        )
+        if target is None:
+            return jsonify({"error": "I couldn't identify a track to move. Include its exact title."}), 400
+        ordered_ids = [int(track["id"]) for track in track_list if int(track["id"]) != int(target["id"])]
+        if any(term in normalized for term in ("last", "bottom", "end")):
+            ordered_ids.append(int(target["id"]))
+        else:
+            ordered_ids.insert(0, int(target["id"]))
+        updated_playlist = reorder_playlist_tracks(
+            str(AUTH_DATABASE), user["id"], playlist_id, ordered_ids
+        )
+        return jsonify({
+            "playlist": updated_playlist,
+            "added": [],
+            "added_count": 0,
+            "removed": [],
+            "removed_count": 0,
+            "reordered": True,
+            "moved_track": target,
+        })
+
     with closing(_connect_database(AUTH_DATABASE)) as connection:
         known_artists = [
             row[0] for row in connection.execute(
                 "SELECT name FROM artists ORDER BY LENGTH(name) DESC, name"
             ).fetchall()
         ]
-    intent, intent_provider = extract_music_intent(instruction.strip(), known_artists)
+    intent, intent_provider = extract_music_intent(command, known_artists)
     context_vibes = {"studying": "focused", "travelling": "energetic", "evening": "relaxed", "workout": "energetic", "sleep": "relaxed"}
     vibe = intent["mood"] or context_vibes.get(intent["context"], "neutral")
     filters = {key: intent[key] for key in ("genre", "language", "artist") if intent.get(key)}
@@ -1983,9 +2048,9 @@ def refine_playlist(playlist_id):
             limit=12, include_preferences=True, include_history=False,
         )
 
-    existing_ids = {int(track["id"]) for track in playlist["tracks"]}
-    existing_artists = {str(track.get("artist") or "").casefold() for track in playlist["tracks"]}
-    prefer_new_artists = any(term in instruction.lower() for term in ("new artists", "different artists", "more variety"))
+    existing_ids = {int(track["id"]) for track in track_list}
+    existing_artists = {str(track.get("artist") or "").casefold() for track in track_list}
+    prefer_new_artists = any(term in normalized for term in ("new artists", "different artists", "more variety"))
     additions = []
     for track in recommendations:
         if len(additions) >= 5:
@@ -2002,10 +2067,12 @@ def refine_playlist(playlist_id):
         "playlist": updated_playlist,
         "added": additions,
         "added_count": len(additions),
+        "removed": [],
+        "removed_count": 0,
+        "reordered": False,
         "intent": intent,
         "intent_provider": intent_provider,
     })
-
 
 @app.route("/api/v1/public/playlists", methods=["GET"])
 def public_playlists_index():
