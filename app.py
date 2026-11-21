@@ -58,6 +58,11 @@ from recommendation_engine import (
     save_playback_state,
     save_song,
     update_playlist,
+    create_listening_room,
+    join_listening_room,
+    get_listening_room,
+    update_listening_room,
+    close_listening_room,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
