@@ -1,228 +1,273 @@
-# MannKiDhun
+# 🎵 MannKiDhun
 
-**Music discovery for the mood, moment, and languages that make a song feel personal.**
+<p align="center">
+  <strong>Every Feeling Has a Tune.</strong><br/>
+  Discover music for your mood, moment, and musical taste.
+</p>
 
-[![CI](https://github.com/naitik2043/MannKiDhun/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/naitik2043/MannKiDhun/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/github/license/naitik2043/MannKiDhun)](LICENSE)
-![Python 3.11](https://img.shields.io/badge/Python-3.11-blue?logo=python)
-![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react)
+<p align="center">
+  <a href="https://mannkidhun.onrender.com/"><img src="https://img.shields.io/badge/Live%20Demo-Visit%20MannKiDhun-111827?style=for-the-badge&logo=render" alt="Live demo"/></a>
+  <a href="https://github.com/naitik2043/MannKiDhun"><img src="https://img.shields.io/badge/GitHub-Source%20Code-181717?style=for-the-badge&logo=github" alt="Source code"/></a>
+</p>
 
-[Demo](https://mannkidhun.onrender.com) · [Community playlists](https://mannkidhun.onrender.com/community) · [Catalogue sources](docs/CATALOGUE_SOURCES.md) · [Competitive analysis](docs/COMPETITIVE_ANALYSIS.md) · [17-upgrade status](docs/UPGRADE_STATUS.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
+<p align="center">
+  <img src="https://img.shields.io/github/actions/workflow/status/naitik2043/MannKiDhun/ci.yml?branch=main&label=CI&logo=githubactions" alt="CI status"/>
+  <img src="https://img.shields.io/github/license/naitik2043/MannKiDhun?label=License" alt="MIT License"/>
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=20232A" alt="React 18"/>
+  <img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11"/>
+  <img src="https://img.shields.io/badge/Flask-Backend-000000?logo=flask" alt="Flask"/>
+</p>
 
-MannKiDhun is an open-source music discovery application built with **React, Vite, Flask, and SQLite**. Listeners can choose a mood, describe a moment in natural language, optionally request an expression-based suggestion, and discover tracks from a curated catalogue. Recommendations can use declared music preferences, explicit feedback, and an optional listening context.
+**MannKiDhun** is an open-source, mood-aware music discovery application built with **React, Vite, Flask, and SQLite**. It helps listeners explore music using manual mood selection, natural-language requests, personal preferences, and optional camera-based expression suggestions.
 
-> **The listener stays in control.** Camera analysis is off by default. A facial-expression estimate is not a reliable measure of someone's inner emotional state, and it never overrides a manually selected mood.
+The listener remains in control: camera access is off by default, expression suggestions are optional, and a manual mood choice can always be made instead.
 
-## Product experience
+> **Model transparency:** Expression scores are experimental, uncalibrated model outputs—not validated measurements of a person's emotions. Model performance has not yet been established on a labeled, subject-separated evaluation dataset. Music playback uses YouTube embeds and links rather than a native streaming service.
 
-| Capability | What it does |
+---
+
+## ✨ Features
+
+| Feature | Description |
 | --- | --- |
-| Mood check-in | Choose a vibe manually or opt into a five-frame facial-expression estimate. Camera estimates require explicit confirmation before a recommendation is shown; manual selection can correct the suggestion. |
-| Match / Change / Explore | Match a current mood, move through a three-stage Change journey (starting mood → heuristic bridge → target), or Explore beyond mood filters. |
-| Context-aware discovery | Select studying, travelling, evening, workout, or sleep. A transparent tag-affinity heuristic adjusts catalogue ranking. |
-| Explainable recommendations | See catalogue-backed reasons and respond with Like or Not for me feedback. |
-| Music Assistant | Search the local catalogue with text or browser speech dictation in Hindi / English (India). A confirmed check-in can prefill Match mode; local rules recognize common Roman Hinglish and selected native-script phrases. |
-| Adaptive sessions | Build Match, Change, or Explore queues. Like / Not for me feedback can refresh the remaining session when you opt into history-based personalization. |
-| Global player | One app-level YouTube player follows internal navigation, persists its queue locally, supports seek / previous / next / repeat, and advances automatically when an embedded track ends. |
-| Group listening | Playlist owners can start six-hour invite-only rooms. Signed-in guests join with a bearer link; playlist playback state and recent participant presence sync through versioned polling. |
-| Personal Music DNA | Opt in to a private summary of recurring languages, genres, artists, listening styles, and vibes. Export or reset the profile. |
-| Mood & Music Journal | Write private mood notes and review recent patterns. Entries are manually created, never inferred from camera frames. |
-| Playlists & community | Create playlists, publish them optionally, discover public playlists, invite viewers or editors, and start group listening rooms. |
-| Personal library | Save tracks, review listening history, and manage music preferences. |
-| Regional discovery | Starter catalogue includes Hindi, English, Punjabi, Bengali, Gujarati, Telugu, Tamil, Malayalam, and Marathi tracks. |
+| **Mood-based discovery** | Choose a mood manually and discover catalogue tracks that fit your selected vibe. |
+| **Optional expression check-in** | Request an expression-based suggestion from a five-frame camera check-in. |
+| **Privacy-conscious camera flow** | Camera access is disabled by default and starts only after an explicit user action. |
+| **Match, Change & Explore** | Find music for the current vibe, move toward a target mood, or explore outside mood filters. |
+| **Context-aware recommendations** | Optionally select studying, travelling, evening, workout, or sleep. Curated catalogue tags influence ranking. |
+| **Explainable recommendations** | View catalogue-backed reasons and provide feedback such as Like or Not for me. |
+| **Natural-language Music Assistant** | Search the catalogue using text; browser speech dictation is available where supported. |
+| **Adaptive listening sessions** | Build recommendation queues and refresh upcoming tracks using feedback. |
+| **Global music player** | Control a shared app-level YouTube player with queue, seek, previous, next, repeat, and Media Session support where available. |
+| **Playlists & collaboration** | Create playlists, invite viewers or editors, publish playlists optionally, and discover public playlists. |
+| **Group listening rooms** | Share playlist-scoped playback state with signed-in participants through versioned polling. |
+| **Personal Music DNA** | Opt in to a private summary of recurring languages, genres, artists, listening styles, and vibes. |
+| **Mood & Music Journal** | Create private, manually written mood notes and review recent patterns. |
+| **Personal music library** | Save songs, review listening history, and manage music preferences. |
+| **Responsive experience** | Use the application on different screen sizes with light and dark themes. |
 
-### How context-aware ranking works
-
-A listener can optionally select a context in the Music Assistant. MannKiDhun compares that selection with existing catalogue tags such as \`calm\`, \`acoustic\`, \`driving\`, \`dance\`, and \`powerful\`, then blends the resulting affinity into the existing preference, vibe, artist, and feedback score. The recommendation response includes the selected context, match score, and matching tags so the influence is inspectable.
-
-This is a **curated metadata heuristic**, not an audio-understanding model. It does not read location, calendar, activity sensors, heart rate, or wearable data. Its quality depends on the coverage and accuracy of the catalogue tags; richer, verified audio features are a roadmap item.
-
-## Screens and routes
-
-| Route | Purpose |
-| --- | --- |
-| \`/\` | Product landing page |
-| \`/signup\`, \`/signin\` | Account creation and sign-in |
-| \`/app\`, \`/mood-check\` | Mood check-in experience |
-| \`/assistant\` | Music Assistant, discovery controls, adaptive queues, and playlist tools |
-| \`/dashboard\` | Music preferences, listening history, Music DNA, journal, and personal music data |
-| \`/profile\` | Account and profile settings |
-| \`/community\` | Public playlist directory |
-| \`/playlists/<id>\` | Read-only public playlist page |
-
-## Technology
+## 🧰 Tech Stack
 
 | Layer | Technologies |
 | --- | --- |
 | Frontend | React 18, Vite, Tailwind CSS, JavaScript |
 | Backend | Python 3.11, Flask, Gunicorn |
-| Persistence | SQLite, with a configurable data directory |
-| Expression pipeline | MediaPipe Holistic, OpenCV, Keras / TensorFlow |
-| Testing | Python \`unittest\`, Vitest, Testing Library |
-| Player | YouTube IFrame Player API, browser Media Session API where supported |
-| Deployment | Render Blueprint, GitHub Actions, CodeQL |
+| Database | SQLite, versioned schema migrations |
+| Machine learning & computer vision | MediaPipe Holistic, OpenCV, TensorFlow, Keras |
+| Testing | Python `unittest`, Vitest, React Testing Library |
+| Music playback | YouTube IFrame Player API, browser Media Session API |
+| CI & security analysis | GitHub Actions, CodeQL |
+| Deployment | Render |
 
-## Run locally
+## 🖼️ Application Preview
 
-### Requirements
+<!-- Add current, real application screenshots here. Suggested sections: Landing page, Mood Check-in, Music Assistant, Dashboard, and Playlists. -->
 
-- Python 3.11
-- Node.js 20.19+ or 22.12+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Python **3.11**
+- Node.js **20.19+** or **22.12+**
+- npm
 - A modern browser
 - HTTPS or localhost for camera access
 
-### Install
+### 1. Clone the repository
 
-From the repository root:
+```bash
+git clone https://github.com/naitik2043/MannKiDhun.git
+cd MannKiDhun
+```
 
-\`\`\`powershell
-$pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
-py -3.11 -m venv $pythonEnv
-& "$pythonEnv\Scripts\python.exe" -m pip install --upgrade pip
-& "$pythonEnv\Scripts\python.exe" -m pip install -r requirements.txt
+### 2. Set up the Python environment
+
+**Windows PowerShell:**
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+**macOS / Linux:**
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 3. Install frontend dependencies
+
+```bash
 npm ci
-\`\`\`
+```
 
-### Start the backend
+### 4. Configure environment variables
 
-\`\`\`powershell
-$pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
-& "$pythonEnv\Scripts\python.exe" app.py
-\`\`\`
-
-### Start the frontend
-
-In a second terminal:
-
-\`\`\`sh
-npm run dev
-\`\`\`
-
-Open the Vite URL printed in the terminal (normally \`http://127.0.0.1:5173\`). The Vite development server proxies \`/api\` and \`/predict\` to Flask at \`http://127.0.0.1:5001\`. When the frontend Origin differs from the Flask host, set \`MANNKIDHUN_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173\` in the Flask process before starting it. Create an account at \`/signup\`, then open the Assistant or mood check-in.
-
-### Environment configuration
-
-See [.env.example](.env.example) for the supported settings. The Flask application does **not** load \`.env\` automatically; configure variables in your shell or deployment platform.
+Review [`.env.example`](.env.example). The Flask application does **not** automatically load a `.env` file, so configure variables in your shell or deployment dashboard.
 
 | Variable | Purpose |
 | --- | --- |
-| \`MANNKIDHUN_SECRET_KEY\` | Stable Flask session-signing secret. Set this in every deployed environment. |
-| \`MANNKIDHUN_COOKIE_SECURE\` | Set to \`1\` when the public site is served over HTTPS. |
-| \`MANNKIDHUN_ALLOWED_ORIGINS\` | Comma-separated additional browser origins. Set your Vite development origin (normally localhost:5173 or 127.0.0.1:5173) when it differs from Flask's host. |
-| \`MANNKIDHUN_DATA_DIR\` | Optional directory for the SQLite database and profile uploads. Defaults to \`./instance\`. |
-| \`AI_ASSISTANT_API_KEY\` | Optional key for an OpenAI-compatible intent provider. Leave unset to use local rule-based intent parsing. |
-| \`AI_ASSISTANT_API_URL\` | Optional HTTPS endpoint for the intent provider. |
-| \`AI_ASSISTANT_MODEL\` | Model name sent to the configured intent provider. |
+| `MANNKIDHUN_SECRET_KEY` | Stable Flask session-signing secret. Set a strong secret in deployed environments. |
+| `MANNKIDHUN_COOKIE_SECURE` | Set to `1` when the public application is served over HTTPS. |
+| `MANNKIDHUN_ALLOWED_ORIGINS` | Comma-separated additional browser origins. Configure the Vite origin for local development when it differs from Flask's host. |
+| `MANNKIDHUN_DATA_DIR` | Optional directory for the SQLite database and profile uploads. Defaults to `./instance`. |
+| `AI_ASSISTANT_API_KEY` | Optional key for an OpenAI-compatible intent provider. Leave unset to use local rule-based intent parsing. |
+| `AI_ASSISTANT_API_URL` | Optional HTTPS endpoint for the intent provider. |
+| `AI_ASSISTANT_MODEL` | Model name sent to the configured intent provider. |
 
 The optional assistant provider receives the current text request to extract structured search intent. It does not receive camera frames, session credentials, or listening history.
 
-## Quality checks
+### 5. Run the backend
 
-Build the frontend:
+Activate the Python environment, then run:
 
-\`\`\`sh
+```bash
+python app.py
+```
+
+Flask starts at `http://127.0.0.1:5001` by default.
+
+### 6. Run the frontend
+
+In a second terminal:
+
+```bash
+npm run dev
+```
+
+Open the Vite URL shown in the terminal (normally `http://127.0.0.1:5173`). The Vite development server proxies `/api` and `/predict` requests to Flask at port `5001`.
+
+If the Vite origin differs from the Flask host, set the allowed origin before starting the backend:
+
+**PowerShell**
+```powershell
+$env:MANNKIDHUN_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+python app.py
+```
+
+**macOS / Linux**
+```bash
+MANNKIDHUN_ALLOWED_ORIGINS="http://localhost:5173,http://127.0.0.1:5173" python app.py
+```
+
+Create an account at `/signup`, then open the Music Assistant or mood check-in.
+
+## 🧪 Quality Checks
+
+Run the production frontend build:
+
+```bash
 npm run build
-\`\`\`
+```
 
 Run frontend tests:
 
-\`\`\`sh
+```bash
 npm test
-\`\`\`
+```
 
-Run backend tests (PowerShell):
+Run backend tests:
 
-\`\`\`powershell
-$pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
-& "$pythonEnv\Scripts\python.exe" -m unittest discover -s tests
-\`\`\`
+```bash
+python -m unittest discover -s tests
+```
 
-GitHub Actions runs the production frontend build and both test suites on pushes and pull requests.
+GitHub Actions runs the frontend build and backend / frontend test suites on pushes and pull requests. CodeQL performs static security analysis.
 
-## Architecture
+## 🏗️ Architecture
 
-\`\`\`text
-frontend/src/
-  React pages, components, hooks, and styles
-        |
-        | same-origin JSON + session cookie
-        v
-app.py
-  Flask routes, account/session handling, API validation
-        |
-        +--> recommendation_engine.py
-        |      catalogue, preferences, feedback, context affinity
-        |
-        +--> music_assistant.py
-        |      local intent parsing + optional structured provider
-        |
-        +--> model_loader.py / frame_validation.py
-               optional expression estimate
-        |
-        v
-SQLite database + profile uploads
-\`\`\`
+```text
+MannKiDhun
+│
+├── frontend/                  React + Vite application
+│   └── src/
+│       ├── components/        Reusable UI components
+│       ├── context/           Shared player and app state
+│       ├── hooks/             Camera and interaction hooks
+│       ├── pages/             Application pages
+│       └── styles/             UI styles
+│
+├── app.py                     Flask routes and application entry point
+├── recommendation_engine.py   Catalogue, ranking, playlists and feedback
+├── music_assistant.py         Natural-language music intent extraction
+├── model_loader.py            Emotion-model artifact validation and loading
+├── frame_validation.py        Input image-quality checks
+├── prediction_aggregation.py  Multi-frame output aggregation
+├── database_migrations.py     Versioned SQLite migrations
+├── database_ops.py            Database backup / restore utilities
+├── model/                     Model and label artifacts
+├── tests/                     Backend and frontend tests
+└── docs/                      Architecture, API, security and operations docs
+```
 
-Key implementation files:
+For detailed design and operational notes, see:
 
-- \`app.py\`: Flask application, authentication, account APIs, assistant endpoints, playlist routes, and health check.
-- \`database_migrations.py\`, \`database_ops.py\`: ordered SQLite schema migrations and integrity-checked online backup / restore utilities.
-- \`frontend/src/context/PlayerContext.jsx\`: app-level YouTube player, persistent local queue, playback controls, and Media Session integration.
-- \`recommendation_engine.py\`: catalogue setup, hybrid ranking, feedback scoring, saved songs, and playlist persistence.
-- \`music_assistant.py\`: rule-based intent parsing with an optional structured-intent provider.
-- \`model_loader.py\`, \`frame_validation.py\`, \`prediction_aggregation.py\`: model artifact checks, image-quality validation, and multi-frame estimate aggregation.
-- \`frontend/src/\`: React application and browser-side camera / voice interactions.
-- \`tests/\`: backend unit and API tests plus frontend component tests.
-- \`docs/\`: architecture, API, database, deployment, security, catalogue sources, and market analysis.
+- [Security and privacy](docs/SECURITY.md)
+- [API documentation](docs/API.md)
+- [Database and backups](docs/DATABASE.md)
+- [Deployment and operations](docs/DEPLOYMENT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Catalogue sources](docs/CATALOGUE_SOURCES.md)
+- [Product roadmap](docs/PRODUCT_ROADMAP.md)
+- [Upgrade implementation status](docs/UPGRADE_STATUS.md)
+- [Competitive analysis](docs/COMPETITIVE_ANALYSIS.md)
 
-## Privacy and responsible use
+## 🔐 Privacy & Responsible Use
 
-- Camera access requires a separate user action. Five temporary frames are sent for the expression check and are processed in memory; the expression endpoint does not save the frames to disk.
-- The model's class scores are **not calibrated probabilities**. Frame consistency is not model accuracy. The model has not been established as reliable on a labeled, subject-separated evaluation dataset.
-- An expression estimate must be explicitly confirmed before it can select the mood-based music suggestion; a manual choice always overrides it.
-- Manual mood selection remains available without camera access. Facial expressions should not be used to infer a person's actual feelings or for health, employment, educational, or other consequential decisions.
+- Camera access requires an explicit user action; it is not enabled automatically.
+- Five temporary frames are sent for expression analysis and processed in memory by the expression endpoint; the endpoint does not save the frames to disk.
+- Model class scores are **not calibrated probabilities**. Frame consistency is not model accuracy, and the model has not been established as reliable on a labeled, subject-separated evaluation dataset.
+- An expression estimate must be explicitly confirmed before it can select a mood-based suggestion. A manual selection remains available and can override the estimate.
+- Facial expressions should not be treated as proof of a person's actual feelings or used for health, employment, educational, or other consequential decisions.
 - Music DNA is disabled until the listener opts in. Mood journal entries are manually written and private to the account.
-- Listening-history personalisation is used only when the listener enables it for a request.
-- Public playlist sharing is opt-in. A public playlist is read-only to visitors; private collaboration requires a time-limited viewer or editor invitation.
+- Listening-history personalization is used only when enabled by the listener for a request.
+- Public playlist sharing is optional. Private collaboration uses time-limited viewer or editor invitations.
 
-See [Security and privacy](docs/SECURITY.md) for safeguards and remaining hardening work.
+## 🎧 Playback & Catalogue Notes
 
-## Deployment
+MannKiDhun uses a curated starter catalogue. It is not a full music-licensing or streaming catalogue, and the application does not host or sublicense recordings. Playback depends on third-party YouTube embeds and links; track availability, embedding permissions, and autoplay behavior are controlled by the provider and browser.
 
-The repository includes a Render Blueprint in [render.yaml](render.yaml). It builds the React app and runs Flask through Gunicorn. The included configuration uses Render's **Free** web-service plan and is intended for a demo.
+Context-aware ranking currently uses manually curated catalogue tags. It is a transparent metadata heuristic—not an audio-understanding model—and does not read location, calendar, activity sensors, heart rate, or wearable data.
 
-**Important: the Free service has an ephemeral filesystem.** SQLite accounts, playlists, preferences, journal entries, and uploaded profile photos may be lost after a restart or redeploy. Do not treat the free demo as durable user storage.
+## ☁️ Deployment
 
-For a persistent single-instance SQLite deployment on Render:
+The repository includes a [Render Blueprint](render.yaml) that builds the React application and runs Flask through Gunicorn. The checked-in Blueprint uses Render's **Free** web-service plan and is intended for a demo.
 
-1. Use a paid Render web-service plan that supports a persistent disk.
-2. Attach a persistent disk mounted at \`/var/data\`.
-3. Set \`MANNKIDHUN_DATA_DIR=/var/data\` in the service environment.
-4. Deploy and verify \`/healthz\`, then make and test a database backup.
+> **Important:** The Render Free service uses an ephemeral filesystem. SQLite accounts, playlists, preferences, journal entries, and uploaded profile photos may be lost after a restart or redeploy. Do not treat the Free demo as durable user storage.
 
-The configurable data directory stores both \`moodwave.sqlite3\` and \`profile_uploads/\`. The app now applies versioned SQLite migrations at startup and includes integrity-checked manual backup / restore commands in [Database](docs/DATABASE.md). This is a deployment option, not an automatic upgrade of the Free Blueprint. For multi-instance or larger-scale production use, move to a managed database and object storage, schedule encrypted off-site backups, and rehearse restore procedures before onboarding real users.
+For persistent single-instance SQLite storage on Render:
 
-See [Deployment and operations](docs/DEPLOYMENT.md) and [Database](docs/DATABASE.md).
+1. Use a paid web-service plan that supports a persistent disk.
+2. Attach a persistent disk mounted at `/var/data`.
+3. Set `MANNKIDHUN_DATA_DIR=/var/data`.
+4. Deploy, verify `/healthz`, and test a database backup and restore.
 
-## Known limitations
+For multi-instance production use, move to a managed database and object storage, introduce shared rate limiting, schedule encrypted off-site backups, and rehearse recovery procedures.
 
-- The catalogue is a curated starter dataset, not a full music-licensing or streaming catalogue. Playback uses third-party embeds / links; MannKiDhun does not host or sublicense recordings.
-- Context matching currently uses manually curated tags. There is no validated audio-feature model for tempo, energy, valence, or era.
-- The global player uses the YouTube IFrame API; availability, autoplay, and track embedding depend on provider and browser restrictions. Its queue survives internal route navigation and reloads, but continuous playback cannot survive a full browser refresh or external navigation.
-- Group listening rooms sync playlist playback state and recent presence through polling with optimistic version checks. They are not WebSocket-based and cannot guarantee sample-accurate audio synchronization.
-- Voice features depend on the browser's speech APIs and may not be available in every browser.
-- Kannada, Urdu, Sanskrit, and other regional-language catalogue coverage needs verified additions; language recognition in the assistant does not mean that tracks are already available.
+See [Deployment](docs/DEPLOYMENT.md) and [Database](docs/DATABASE.md).
+
+## ⚠️ Known Limitations
+
+- The curated catalogue is a starter dataset and not a licensed streaming catalogue.
+- Expression outputs are experimental and have not been validated as reliable emotion measurements.
+- Context matching depends on the coverage and quality of manually curated metadata tags.
+- Group listening rooms synchronize playlist state and recent presence through polling; they are not WebSocket-based and cannot guarantee sample-accurate audio synchronization.
+- Browser speech features depend on speech APIs supported by the user's browser.
 - Password-reset and verification email delivery are not configured.
-- Browser API mutations use a synchronizer-token CSRF cookie/header plus the configured origin allowlist. Requests omitting both Origin and Referer remain permitted for trusted non-browser / legacy compatibility.
-- Login and assistant rate limits are process-local and not shared across workers; both in-memory registries are capped at 10,000 keys with opportunistic expiry cleanup.
-- SQLite migrations and manual backup / restore tooling are included, but scheduled off-site backups and restore drills are not. Login and assistant limits remain process-local, and the Free Render filesystem is ephemeral; this is not a durable multi-worker production setup. Login and assistant throttle entries are memory-bounded, but shared rate limiting is still required before scaling.
+- Login and assistant rate limits are process-local. Their in-memory registries are bounded, but the limits are not shared across workers or hosts.
+- The Render Free deployment uses ephemeral storage and is not a durable production data store.
 
-## Product and market research
+## 📄 License
 
-See [the 17-upgrade implementation audit](docs/UPGRADE_STATUS.md) for an item-by-item status, evidence, and remaining scope.
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for the full license text.
 
-See [Competitive analysis and differentiation](docs/COMPETITIVE_ANALYSIS.md) for a sourced review of adjacent products, an evidence-based positioning, and prioritized opportunities. The [Product roadmap](docs/PRODUCT_ROADMAP.md) distinguishes shipped capabilities from remaining work.
+---
 
-## License
-
-Distributed under the [MIT License](LICENSE).
+<p align="center">
+  Built with 🎵 by <a href="https://github.com/naitik2043">Naitik Gupta</a>
+</p>
