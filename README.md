@@ -156,7 +156,7 @@ The Music Assistant does not invent track names or playback URLs. Recommendation
 
 ### Detailed diagrams and workflows
 
-See [System architecture](docs/ARCHITECTURE.md) for the component and request-level design, and [Application workflows](docs/WORKFLOWS.md) for the mood check-in, recommendation, playlist collaboration, and group listening flows.
+See [System architecture](docs/ARCHITECTURE.md) for the component and request-level design, [Application workflows](docs/WORKFLOWS.md) for the product journeys, [Database ER diagram](docs/DATABASE.md#entity-relationship-diagram) for relational data modelling, and [API interaction diagrams](docs/API_INTERACTION.md) for browser-to-backend sequences.
 
 ### Important implementation areas
 
@@ -349,9 +349,11 @@ See [Deployment and operations](docs/DEPLOYMENT.md) and [Database operations](do
 | [Architecture](docs/ARCHITECTURE.md) | Runtime components and key application flows |
 | [Application workflows](docs/WORKFLOWS.md) | Mermaid flowcharts for recommendations, mood check-in, playlists, and group listening |
 | [API documentation](docs/API_DOCUMENTATION.md) | Backend endpoints and API behaviour |
+| [API interaction diagrams](docs/API_INTERACTION.md) | Request lifecycle, authentication, service calls, and API sequence diagrams |
 | [Security](docs/SECURITY.md) | Implemented safeguards and production hardening gaps |
 | [Deployment](docs/DEPLOYMENT.md) | Render setup, environment configuration, and operations |
 | [Database](docs/DATABASE.md) | Schema, migrations, backups, and restore procedures |
+| [Database ER diagram](docs/DATABASE.md#entity-relationship-diagram) | Entity relationships, keys, and storage model |
 | [Catalogue sources](docs/CATALOGUE_SOURCES.md) | Sources used for curated catalogue entries |
 | [Competitive analysis](docs/COMPETITIVE_ANALYSIS.md) | Market context and product differentiation |
 | [Upgrade status](docs/UPGRADE_STATUS.md) | Implementation audit and evidence |
