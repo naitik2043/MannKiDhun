@@ -95,7 +95,7 @@ describe("AssistantPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Catalogue Track")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Discovery mode"), { target: { value: "change" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Discovery mode" }), { target: { value: "change" } });
     fireEvent.change(screen.getByLabelText("Mood you want to move toward"), { target: { value: "happy" } });
     fireEvent.click(screen.getByRole("button", { name: "Build adaptive session" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
