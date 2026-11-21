@@ -785,7 +785,7 @@ class ApiRouteTests(unittest.TestCase):
         )
         self.assertEqual(
             client.post("/api/v1/users/me/saved-songs", json={"song_id": song_id}).status_code,
-            201,
+            200,
         )
 
         reset = client.delete("/api/v1/users/me/music-dna")
