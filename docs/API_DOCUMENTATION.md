@@ -30,7 +30,15 @@ Legacy `/api/auth/*` routes remain available for the current client.
 | GET/POST | `/api/v1/users/me/saved-songs` | List or save the current user's catalogue tracks. |
 | DELETE | `/api/v1/users/me/saved-songs/{song_id}` | Remove a saved track. |
 | GET/POST/DELETE | `/api/v1/users/me/listening-history` | Read, record, or clear the current user's activity. |
+| GET | `/api/v1/users/me/music-dna` | Read the private preference/activity profile when the user has opted in. |
+| POST | `/api/v1/users/me/music-dna/consent` | Enable or disable Music DNA activity summaries. |
+| GET/POST | `/api/v1/users/me/mood-journal` | List recent private journal entries or add a manual mood note. |
+| DELETE | `/api/v1/users/me/mood-journal/{entry_id}` | Delete one of the current user's journal entries. |
+| POST | `/api/v1/users/me/adaptive-session` | Build a recommendation queue and save it to playback state. |
 | GET/POST | `/api/v1/playlists` | List/create playlists owned by the current user. |
+| POST | `/api/v1/playlists/{playlist_id}/refine` | Add catalogue tracks matching a natural-language instruction. |
+| GET | `/api/v1/public/playlists` | Browse public playlist summaries. |
+| GET | `/api/v1/public/playlists/{playlist_id}` | Read one public playlist. Visitors cannot edit it. |
 | GET/PUT/DELETE | `/api/v1/playlists/{playlist_id}` | Read/update/delete an owned playlist. |
 | POST | `/api/v1/playlists/{playlist_id}/tracks` | Add a catalogue track to an owned playlist. |
 | DELETE | `/api/v1/playlists/{playlist_id}/tracks/{song_id}` | Remove a track from an owned playlist. |
@@ -45,11 +53,14 @@ Legacy `/api/auth/*` routes remain available for the current client.
   "message": "Recommend romantic songs in Hindi",
   "previous_intent": null,
   "use_preferences": false,
-  "use_history": false
+  "use_history": false,
+  "mode": "match",
+  "current_mood": null,
+  "target_mood": null
 }
 ```
 
-`message` is required and limited to 500 characters. Consent fields must be booleans. The response includes a user-facing `response`, catalogue-backed `recommendations`, validated `intent`, `used_fallback`, `intent_provider` (`ai` or `rules`), and the consent choices used for ranking. Requests are limited to 12 per minute per account within a single server process.
+`message` is required and limited to 500 characters. Consent fields must be booleans. `mode` accepts `match`, `change`, or `explore`; Match may accept `current_mood`, and Change requires a supported `target_mood`. The response includes a user-facing `response`, catalogue-backed `recommendations`, validated `intent`, `mode`, `used_fallback`, `intent_provider` (`ai` or `rules`), and the consent choices used for ranking. Requests are limited to 12 per minute per account within a single server process. Voice capture happens in the browser and sends the recognised text through this same endpoint.
 
 ### Listening activity and recommendation feedback
 
@@ -66,5 +77,27 @@ The assistant records a play event when a user starts a catalogue track:
 ```
 
 The same listening-history endpoint accepts feedback events such as `like` and `skip` (shown in the UI as **Like** and **Not for me**). Recommendation ranking gives positive weight to likes/saves/completions and negative weight to skips. These events are stored against the signed-in account and are used for history-aware ranking only when the user explicitly enables listening-history personalisation in an assistant request.
+
+### Adaptive sessions
+
+`POST /api/v1/users/me/adaptive-session` accepts `mode` (`match`, `change`, or `explore`), optional `mood`, `use_preferences`, `use_history`, and `limit` (3–12). It returns the recommendations and persists their track IDs to the user's playback-state queue. History is not used unless `use_history: true` is explicitly supplied.
+
+### Mood journal
+
+`POST /api/v1/users/me/mood-journal` accepts a supported manual mood and an optional note up to 500 characters:
+
+```json
+{ "mood": "relaxed", "note": "A quiet evening with music." }
+```
+
+Entries are account-scoped and can be listed with GET or deleted individually. Journal data is not inferred from facial expressions.
+
+### Personal Music DNA
+
+Music DNA is disabled by default. Send `POST /api/v1/users/me/music-dna/consent` with `{ "enabled": true }` to opt in, then read `GET /api/v1/users/me/music-dna`. Disabling consent hides the derived profile; the endpoint does not share it publicly.
+
+### Playlist refinement and sharing
+
+`POST /api/v1/playlists/{playlist_id}/refine` accepts `{ "instruction": "add peaceful music" }`. It adds up to five matching catalogue tracks and leaves existing tracks in place. Public sharing is controlled by the playlist owner's `is_public` field; public playlist reads are available through the public endpoints and remain read-only.
 
 Successful API responses contain JSON; error responses use an `error` field. Authentication failures return 401, invalid payloads 400, and assistant rate-limit responses 429.

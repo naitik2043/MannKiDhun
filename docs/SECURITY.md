@@ -10,6 +10,9 @@
 - Assistant endpoints require authentication, limit message size, validate consent booleans, validate structured provider intent, filter results to catalogue records, and apply a process-local per-account rate limit.
 - Assistant messages are held only in browser memory. Listening history and preferences are opt-in and influence assistant ranking only. Play activity and explicit Like/Not for me feedback are associated with the signed-in account; camera frames and assistant conversation transcripts are not added to this history. If configured, the AI provider receives only the current message, not account credentials or saved history.
 - Camera capture requires an explicit user action. Frames are processed in request memory and are not written to disk by the expression endpoint.
+- Mood journal entries are manually entered and private to the account owner. They do not contain model-inferred mood, camera frames, or raw assistant conversations.
+- Music DNA is disabled by default and requires a separate opt-in. It exposes derived summaries only to the signed-in user and can be disabled at any time.
+- Playlist sharing is explicitly opt-in. Public playlist endpoints expose only playlists whose owner set `is_public`; visitors have read-only access.
 
 ## Known gaps before production
 

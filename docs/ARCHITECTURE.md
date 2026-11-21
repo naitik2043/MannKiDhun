@@ -22,6 +22,16 @@ In development, Vite proxies `/api` and `/predict` to Flask. In the current sing
 4. The recommendation engine ranks existing catalogue records and applies explicit artist, language, and genre filters. If exact filters yield no tracks, the assistant explains this and offers available catalogue alternatives.
 5. The client keeps messages in page memory. It does not persist conversations.
 
+## Modes, personalisation and social sharing
+
+1. Match uses a current mood from the request or intent parser; Change ranks for a selected target mood; Explore removes the mood filter while preserving any explicit language, genre, or artist request.
+2. Adaptive-session generation reuses the hybrid recommendation engine, then writes the resulting song IDs as a playback-state queue. It is a saved queue snapshot, not a real-time autonomous player.
+3. Music DNA is disabled until the user opts in. Its private summary aggregates positive and negative interactions by language, genre, and artist.
+4. Mood-journal entries are manually entered, account-scoped text and mood labels. The journal never receives camera frames or model predictions.
+5. Natural-language playlist refinement parses a bounded instruction and adds catalogue matches; existing tracks are not removed implicitly.
+6. Owners may mark playlists public. The Community page lists public playlists, while public detail pages are read-only and do not grant collaborative edit permissions.
+7. Voice input is browser-side speech-to-text; only the recognised text is sent to the normal assistant endpoint.
+
 ## Library and feedback flow
 
 1. The dashboard loads the authenticated user's recent interaction history and playlist summaries from separate API endpoints.

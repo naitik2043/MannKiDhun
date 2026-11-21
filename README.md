@@ -2,7 +2,7 @@
 
 **A more personal way to find music for the moment.**
 
-[Open the live demo](https://mannkidhun.onrender.com) · [Architecture](docs/ARCHITECTURE.md) · [API reference](docs/API_DOCUMENTATION.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security and privacy](docs/SECURITY.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
+[Open the live demo](https://mannkidhun.onrender.com) · [Community playlists](https://mannkidhun.onrender.com/community) · [Architecture](docs/ARCHITECTURE.md) · [API reference](docs/API_DOCUMENTATION.md) · [Deployment guide](docs/DEPLOYMENT.md) · [Security and privacy](docs/SECURITY.md) · [Product roadmap](docs/PRODUCT_ROADMAP.md)
 
 MannKiDhun is an open-source music discovery app with a **JavaScript/React frontend** and a **Python/Flask backend**. Choose a vibe yourself or optionally request an expression-based starting suggestion, then explore music that fits the moment.
 
@@ -15,10 +15,17 @@ MannKiDhun is an open-source music discovery app with a **JavaScript/React front
 - See why a track was recommended, then use **Like** or **Not for me** to provide feedback that influences future history-aware ranking.
 - Play catalogue tracks through YouTube embeds or provider links; assistant playback activity is recorded in your listening history.
 - Save tracks, create playlists, and manage your preferences for language, genre, listening style, and artists.
-- Use the dashboard to review recent listening activity and your saved playlists.
+- Choose **Match**, **Change**, or **Explore** discovery modes, then build an adaptive listening queue using your selected preferences and (only when you opt in) listening activity.
+- Refine a playlist with natural-language requests such as “add peaceful music”, “more Hindi songs”, or “more variety”. Refinement adds matching catalogue tracks; it does not silently remove existing songs.
+- Enable **Personal Music DNA** to see private summaries of your favourite languages, genres, and artists from saved preferences and account activity. This is opt-in and can be disabled.
+- Keep a private, manually written **Mood & Music Journal**. Journal entries are separate from camera inference and do not contain camera frames.
+- Use browser-supported voice input in English (India) or Hindi to dictate a text request.
+- Share a playlist publicly and browse the community directory. Shared playlists are read-only for visitors; only the owner can edit them.
+- Explore Indian-language intent filters including Hindi, Punjabi, Tamil, Telugu, Bengali, Marathi, Gujarati, Malayalam, Kannada, Urdu, and Sanskrit. Actual recommendations depend on the catalogue's current coverage.
+- Use the dashboard to review recent listening activity, saved playlists, Music DNA, and journal entries.
 - Use the responsive interface on desktop or mobile, with light and dark themes.
 
-**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service; playback is provided through YouTube embeds and external provider links. The saved queue stores track IDs and is not a synchronized, cross-session player. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
+**Feature boundaries:** MannKiDhun is a music discovery app, not a licensed streaming service; playback is provided through YouTube embeds and external provider links. The saved queue stores track IDs and is not a synchronized, cross-session player. Adaptive sessions save a queue snapshot; they do not run a continuous player or reorder a playing queue in real time. Natural-language playlist refinement adds matches, while public playlist sharing is read-only for visitors and is not real-time co-editing. Voice input depends on browser speech-recognition support. Indian-language intent parsing is broader than the current seeded catalogue, so some languages may return few or no matches. Password-reset and verification email delivery are not configured. The current free Render deployment uses ephemeral local storage, so account and library data can be lost when the service restarts or redeploys.
 
 ## Technology
 
@@ -86,7 +93,7 @@ The Flask development server is for local use only. Production deployments shoul
 
 ## Architecture
 
-- `app.py` serves the built frontend and provides the Flask API, including authenticated listening-history and playlist endpoints.
+- `app.py` serves the built frontend and provides the Flask API, including authenticated preferences, listening history, mood journal, Music DNA, playlist refinement, adaptive sessions, and public playlist read endpoints.
 - `frontend/src/` contains the React application.
 - `recommendation_engine.py` manages the catalogue, recommendations, playlists, and listening data.
 - `music_assistant.py` parses search intent locally; an optional provider can be configured.
