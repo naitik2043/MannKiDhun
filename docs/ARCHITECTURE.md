@@ -1,51 +1,177 @@
-# Architecture
+# System architecture
 
-## Runtime
+This document describes the current MannKiDhun implementation: a React browser application, a Flask application server, a SQLite persistence layer, and optional browser / provider integrations.
 
-```text
-Browser (React + Vite build)
-  ├─ same-origin JSON requests and HTTP-only session cookie
-  ├─ optional camera frames ──> Flask /predict ──> MediaPipe + Keras
-  └─ assistant text ──> Flask /api/v1/assistant/chat
-                          ├─ optional OpenAI-compatible intent parser
-                          ├─ local intent fallback
-                          └─ SQLite catalogue + hybrid recommendation engine
+## 1. System overview
+
+```mermaid
+flowchart TB
+    subgraph Browser["Client · listener's browser"]
+        React["React 18 application<br/>Vite-built single-page app"]
+        BrowserFeatures["Browser APIs<br/>Camera · Web Speech · Media Session"]
+        Embed["YouTube IFrame Player<br/>third-party playback"]
+        React --- BrowserFeatures
+        React --- Embed
+    end
+
+    subgraph Flask["Application server · Flask"]
+        RequestLayer["Flask routes and request controls<br/>Session handling · validation · origin / CSRF checks"]
+        Assistant["Music Assistant<br/>intent extraction and validation"]
+        Ranking["Recommendation engine<br/>catalogue filtering and ranking"]
+        Vision["Optional expression-estimation path<br/>frame validation<br/>MediaPipe / OpenCV processing<br/>lazy Keras model<br/>prediction aggregation"]
+        RequestLayer --> Assistant
+        Assistant --> Ranking
+        RequestLayer --> Vision
+    end
+
+    subgraph Data["Configured application data directory"]
+        SQLite[("SQLite database<br/>users · preferences · journal<br/>catalogue · playlists · interactions<br/>playback and room state")]
+        Photos[("Profile uploads")]
+    end
+
+    IntentProvider["Optional OpenAI-compatible<br/>structured-intent provider"]
+
+    React -->|"JSON requests + signed session cookie"| RequestLayer
+    Assistant -->|"current text request only"| IntentProvider
+    Ranking <-->|"read / write application data"| SQLite
+    RequestLayer <-->|"account and profile records"| SQLite
+    RequestLayer --> Photos
 ```
 
-In development, Vite proxies `/api` and `/predict` to Flask. In the current single-server setup Flask serves `frontend/dist`. `app.py` creates the Flask app at import time and initializes the SQLite schema and seeded music catalogue.
+### Runtime and deployment
 
-## Assistant request flow
+- **Production:** the React application is built into `frontend/dist`; Flask serves the built frontend and handles API requests in the same application service.
+- **Development:** Vite serves the frontend and proxies `/api` and `/predict` requests to Flask.
+- **Persistence:** SQLite and profile uploads are stored beneath `MANNKIDHUN_DATA_DIR`, defaulting to the repository's `instance/` directory.
+- **Playback:** the YouTube IFrame player runs in the browser. Playback availability, autoplay, and embedding are controlled partly by YouTube and browser policies.
+- **Optional integrations:** the structured-intent provider is not required. Local rule-based parsing is the fallback.
 
-1. The authenticated client sends a bounded text query, optional previous intent, and explicit preference/history consent flags.
-2. The backend parses mood, catalogue genre/language/artist, and listening context. The listener may explicitly select a context (studying, travelling, evening, workout, or sleep), which takes precedence over parsed context. The optional provider receives only the current text query and must return structured intent; returned values are checked against supported fields and catalogue artists.
-3. If the provider is absent, unavailable, or returns unusable data, local rules parse the request.
-4. The recommendation engine ranks existing catalogue records using preferences, catalogue similarity, vibe, artist taste, explicit feedback, and an optional context affinity derived from curated catalogue tags. Context affinity is a transparent heuristic, not wearable/sensor inference. The engine applies explicit artist, language, and genre filters. If exact filters yield no tracks, the assistant explains this and offers available catalogue alternatives.
-5. The client keeps messages in page memory. It does not persist conversations.
+## 2. Assistant request lifecycle
 
-## Modes, personalisation and social sharing
+The authenticated Assistant request includes a bounded message, the selected mode, optional previous intent, optional context, and explicit preference / history consent flags.
 
-1. Match uses a current mood from the request or intent parser; Change ranks for a selected target mood; Explore removes the mood filter while preserving any explicit language, genre, or artist request.
-2. Adaptive-session generation reuses the hybrid recommendation engine, then writes the resulting song IDs as a playback-state queue. It is a saved queue snapshot, not a real-time autonomous player.
-3. Music DNA is disabled until the user opts in. Its private summary aggregates positive and negative interactions by language, genre, and artist.
-4. Mood-journal entries are manually entered, account-scoped text and mood labels. The journal never receives camera frames or model predictions.
-5. Natural-language playlist refinement parses a bounded instruction and adds catalogue matches; existing tracks are not removed implicitly.
-6. Owners may mark playlists public. The Community page lists public playlists, while public detail pages are read-only.
-7. Owners can create seven-day editor/viewer invite links. Accepted editors may add, remove, and reorder tracks; viewers may read but not edit. Owners can change roles, remove collaborators, and revoke unaccepted invitation links.
-8. Natural-language playlist commands route to explicit add/remove/reorder actions; remove and move actions require a named track or unambiguous "last" instruction.
-9. Voice input and spoken responses are browser-side Web Speech APIs; only recognised text is sent to the assistant endpoint. Adaptive-session controls update the saved queue when the listener selects a track; no continuous audio automation is assumed.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Listener
+    participant UI as React client
+    participant Flask as Flask API
+    participant Assistant as Music Assistant
+    participant Provider as Optional intent provider
+    participant Engine as Recommendation engine
+    participant DB as SQLite
 
-## Library and feedback flow
+    Listener->>UI: Enter or dictate a music request
+    UI->>Flask: POST /api/v1/assistant/chat
+    Flask->>Flask: Validate session, request and consent flags
+    Flask->>Assistant: Pass bounded text and selected options
 
-1. The dashboard loads the authenticated user's recent interaction history and playlist summaries from separate API endpoints.
-2. Starting a catalogue track from the assistant records a `play` interaction with the source set to `assistant`; a history-write failure does not block playback.
-3. A listener can submit `like` or `skip` feedback from a recommendation card. The recommendation engine converts interaction types into signed relevance scores, so skip feedback lowers a track's history contribution rather than reinforcing it.
-4. The assistant displays the recommendation engine's existing explanation text to make the selection easier to understand.
-5. The history table is account-scoped. It does not store camera frames or assistant conversation transcripts.
+    opt Provider is configured
+        Assistant->>Provider: Send current text for structured intent
+        Provider-->>Assistant: Return structured intent
+    end
 
+    Assistant->>Assistant: Validate provider result or use local rules
+    Assistant->>Engine: Pass normalized intent and consent choices
+    Engine->>DB: Read catalogue and permitted preference / history signals
+    DB-->>Engine: Return catalogue and user signals
+    Engine->>Engine: Apply supported filters and rank catalogue tracks
+    Engine-->>Assistant: Return recommendations and explanation data
+    Assistant-->>Flask: Build assistant response
+    Flask-->>UI: JSON response
+    UI-->>Listener: Display recommendations and reasons
+```
 
+### Intent parsing and ranking
 
-The assistant provider does not generate track names or playback URLs. Only catalogue records are returned. Rate limiting is process-local (12 requests per authenticated account per minute), so it is not shared across multiple WSGI workers or hosts.
+1. The client submits a text request and the user's selected options.
+2. The Assistant extracts supported intent such as mood, genre, language, artist, and listening context.
+3. When configured, the optional provider can return structured intent. The backend validates those values against supported fields and catalogue artists.
+4. If the provider is absent, unavailable, or returns unusable data, local rule-based parsing is used.
+5. The recommendation engine filters and ranks existing catalogue records using the request, catalogue metadata, declared preferences, artist affinity, explicit feedback, and optional context-tag affinity.
+6. The API returns catalogue-backed recommendations and explanation text. The assistant provider does not generate track names or playback URLs.
 
-## Existing capabilities and limits
+### Personalisation boundaries
 
-Authentication, profile/preferences, expression estimation, recommendation ranking, playlists, saved songs, listening history, and playback-state storage have backend APIs and user-facing surfaces. The application does not yet provide a full global player, versioned migrations, PostgreSQL support, durable multi-instance storage, or complete production operational controls. The Render Blueprint is a demo deployment configuration; see the [API reference](./API_DOCUMENTATION.md) and [deployment notes](./DEPLOYMENT.md).
+- Preference and history signals are separately controlled by request consent flags.
+- Music DNA is disabled until the listener opts in.
+- Assistant conversation messages remain in page memory; they are not persisted as chat transcripts.
+- The optional intent provider receives the current text request only. It does not receive camera frames, session credentials, or saved listening history.
+- Context matching uses curated catalogue tags. It does not infer context from location, calendars, activity sensors, heart rate, or wearable data.
+
+## 3. Optional expression-estimation path
+
+Expression-based mood suggestions are an optional input path, not a required step in music discovery.
+
+```mermaid
+flowchart TD
+    Start["Listener chooses the optional expression check"] --> Permission["Browser camera permission and explicit action"]
+    Permission --> Capture["Capture five temporary frames"]
+    Capture --> Send["Send frames to Flask /predict"]
+    Send --> Validate["Validate image format and frame quality"]
+    Validate --> Valid{"Enough usable frames?"}
+    Valid -->|"No"| Retry["Ask listener to retry or choose a mood manually"]
+    Valid -->|"Yes"| Features["MediaPipe / OpenCV feature processing"]
+    Features --> Model["Load and run the Keras model"]
+    Model --> Aggregate["Aggregate frame predictions"]
+    Aggregate --> Certain{"Result sufficiently consistent?"}
+    Certain -->|"No"| Retry
+    Certain -->|"Yes"| Suggestion["Show expression estimate"]
+    Suggestion --> Confirm{"Listener confirms estimate?"}
+    Confirm -->|"No"| Manual["Choose or correct mood manually"]
+    Confirm -->|"Yes"| Match["Use confirmed mood to prefill Match"]
+    Manual --> Assistant["Continue to Music Assistant"]
+    Match --> Assistant
+```
+
+The five frames are processed in request memory and are not written to disk by the expression endpoint. Model class scores are not calibrated probabilities and do not establish a person's actual emotional state. A manual mood choice remains available and can replace the estimate.
+
+## 4. Playback, feedback, and adaptive sessions
+
+The recommendation engine returns catalogue records. The browser plays selected tracks through the YouTube IFrame Player API.
+
+- Starting a catalogue track can record a `play` interaction.
+- The listener can provide `like` or `skip` feedback.
+- Positive and negative interaction signals can influence history-aware ranking only when the listener enables history use for the relevant request.
+- Adaptive sessions save a queue snapshot as playback state. Feedback can re-rank the remaining queue and save the updated queue.
+- The app-level player persists its queue locally across internal navigation. It cannot guarantee continuous playback through browser refreshes, external navigation, provider restrictions, or unsupported browser behaviour.
+
+## 5. Playlists and group listening
+
+- Playlist owners can keep a playlist private or publish it to the Community directory. Public playlist pages are read-only.
+- Owners can issue seven-day viewer or editor invitation links. Editors can add, remove, and reorder tracks; viewers can read but not edit. Owners retain role and access-management controls.
+- Playlist owners can create six-hour group listening rooms. Signed-in guests join with a bearer link. Participants exchange playlist-scoped playback state and recent presence through polling.
+- Playback-state writes use monotonically increasing versions / optimistic checks. A stale update can return HTTP 409 and must be refreshed before retrying.
+- Group rooms use periodic polling, not WebSockets, and do not provide sample-accurate audio synchronisation.
+
+## 6. Persistence and data boundaries
+
+| Data | Storage / handling |
+| --- | --- |
+| Accounts, password hashes, preferences, journal entries | SQLite |
+| Music catalogue, playlists, saved tracks, listening interactions | SQLite |
+| Playback queue and room state | SQLite-backed application state |
+| Profile images | Files under the configured data directory |
+| Assistant conversation | Browser page memory; not stored as a conversation transcript |
+| Expression-check frames | Request memory during inference; not written to disk by the expression endpoint |
+| YouTube playback | Third-party embed in the listener's browser |
+
+The application uses versioned SQLite migrations and includes integrity-checked manual backup / restore utilities. Backups are not automatically scheduled by the application.
+
+## 7. Security controls and operational limits
+
+The current application includes:
+
+- Signed Flask sessions with HttpOnly and SameSite=Lax session cookies.
+- Browser mutation checks using configured origin rules and a synchronizer-token CSRF cookie/header.
+- Security response headers, input validation, parameterised SQL, and account-scoped data access.
+- Failed-login throttling and Assistant rate limits held in bounded, process-local memory.
+
+Important deployment boundaries:
+
+- Requests omitting both Origin and Referer remain allowed for trusted non-browser / legacy compatibility; browser-origin enforcement is not a general API authentication substitute.
+- Login and Assistant limits are not shared across workers or hosts. A shared rate-limit store is needed before horizontal scaling.
+- The included Render Free Blueprint uses ephemeral storage. Local SQLite data and uploaded profile images can be lost on restart or redeploy.
+- A persistent Render disk with SQLite is intended for a single application instance. Multi-instance production use requires a managed database, object storage, shared rate limiting, backups, monitoring, and additional operational hardening.
+
+See [Security](./SECURITY.md), [Deployment](./DEPLOYMENT.md), [Database](./DATABASE.md), and [API documentation](./API_DOCUMENTATION.md) for implementation details.
