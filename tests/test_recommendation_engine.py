@@ -3,7 +3,14 @@ import sqlite3
 import tempfile
 import unittest
 
-from recommendation_engine import DEFAULT_SONGS, _fetch_interaction_history, build_hybrid_recommendations, create_music_catalogue, record_user_interaction
+from recommendation_engine import (
+    DEFAULT_SONGS,
+    _fetch_interaction_history,
+    _fetch_behavioral_preferences,
+    build_hybrid_recommendations,
+    create_music_catalogue,
+    record_user_interaction,
+)
 
 
 class RecommendationEngineTests(unittest.TestCase):
@@ -58,6 +65,14 @@ class RecommendationEngineTests(unittest.TestCase):
         self.assertEqual(recommendations[0]["context_match"], 1.0)
         self.assertIn("studying context", recommendations[0]["explanation"])
         self.assertEqual(recommendations[1]["context_match"], 0.0)
+
+    def test_excluded_song_ids_are_not_recommended(self):
+        songs = [
+            {"id": 1, "title": "Already played"},
+            {"id": 2, "title": "Fresh discovery"},
+        ]
+        result = build_hybrid_recommendations(songs, exclude_song_ids=[1], limit=5)
+        self.assertEqual([item["id"] for item in result], [2])
 
     def test_context_is_ignored_when_not_selected(self):
         song = {"id": 1, "title": "Quiet study track", "tags": ["calm", "acoustic"]}
@@ -160,6 +175,26 @@ class RecommendationEngineTests(unittest.TestCase):
 
             self.assertEqual(scores, {"10": 4.0, "11": -2.0, "12": 2.0})
             self.assertEqual(_fetch_interaction_history(connection, None), {})
+        finally:
+            connection.close()
+
+    def test_positive_feedback_builds_private_artist_genre_and_language_signals(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.executescript(
+                """
+                CREATE TABLE artists (id INTEGER PRIMARY KEY, name TEXT);
+                CREATE TABLE songs (id INTEGER PRIMARY KEY, artist_id INTEGER, genre TEXT, language TEXT);
+                CREATE TABLE user_song_interactions (user_id INTEGER, song_id INTEGER, interaction_type TEXT);
+                INSERT INTO artists VALUES (1, 'Arijit Singh'), (2, 'Dua Lipa');
+                INSERT INTO songs VALUES (10, 1, 'Romance', 'Hindi'), (11, 2, 'Pop', 'English');
+                INSERT INTO user_song_interactions VALUES (7, 10, 'like'), (7, 10, 'save'), (7, 11, 'skip');
+                """
+            )
+            signals = _fetch_behavioral_preferences(connection, 7)
+            self.assertEqual(signals["artists"], ["Arijit Singh"])
+            self.assertEqual(signals["genres"], ["Romance"])
+            self.assertEqual(signals["languages"], ["Hindi"])
         finally:
             connection.close()
 

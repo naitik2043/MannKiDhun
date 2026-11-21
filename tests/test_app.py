@@ -151,6 +151,7 @@ class ApiRouteTests(unittest.TestCase):
         self.instance_directory_patch.start()
         mood_app.initialize_auth_database()
         mood_app.create_music_catalogue(mood_app.AUTH_DATABASE)
+        mood_app.run_migrations(mood_app.AUTH_DATABASE)
 
     def tearDown(self):
         self.auth_database_patch.stop()
@@ -893,6 +894,122 @@ class ApiRouteTests(unittest.TestCase):
             saved["queue"],
             [track["id"] for track in response.json["recommendations"]],
         )
+
+    def test_change_mode_builds_a_three_stage_mood_journey(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "Transition Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        response = client.post(
+            "/api/v1/users/me/adaptive-session",
+            json={
+                "mode": "change",
+                "source_mood": "sad",
+                "mood": "happy",
+                "use_preferences": False,
+                "use_history": False,
+                "limit": 6,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["source_mood"], "sad")
+        self.assertEqual(response.json["mood"], "happy")
+        self.assertEqual(len(response.json["journey"]), 3)
+        self.assertEqual(response.json["journey"][0]["mood"], "sad")
+        self.assertEqual(response.json["journey"][-1]["mood"], "happy")
+        self.assertTrue(all(track.get("journey_stage") for track in response.json["recommendations"]))
+
+    def test_adaptive_session_feedback_updates_remaining_queue(self):
+        client = mood_app.app.test_client()
+        client.post(
+            "/api/auth/register",
+            json={
+                "name": "Feedback Listener",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        session = client.post(
+            "/api/v1/users/me/adaptive-session",
+            json={"mode": "explore", "use_preferences": False, "use_history": False, "limit": 6},
+        )
+        self.assertEqual(session.status_code, 200)
+        queue = [item["id"] for item in session.json["recommendations"]]
+        self.assertGreaterEqual(len(queue), 2)
+        response = client.post(
+            "/api/v1/users/me/adaptive-session/feedback",
+            json={
+                "song_id": queue[0],
+                "event_type": "skip",
+                "queue": queue,
+                "played_ids": [],
+                "mode": "explore",
+                "mood": "neutral",
+                "use_preferences": False,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(queue[0], [item["id"] for item in response.json["remaining"]])
+        self.assertTrue(response.json["state"]["queue"])
+
+    def test_listening_room_invites_sync_shared_playlist_state(self):
+        owner = mood_app.app.test_client()
+        owner.post(
+            "/api/auth/register",
+            json={
+                "name": "Room Owner",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        playlist = owner.post("/api/v1/playlists", json={"name": "Listening Room Mix"}).json["playlist"]
+        playlist_id = playlist["id"]
+        with closing(mood_app._connect_database(mood_app.AUTH_DATABASE)) as connection:
+            song_ids = [row[0] for row in connection.execute("SELECT id FROM songs ORDER BY id LIMIT 2")]
+        for song_id in song_ids:
+            self.assertEqual(
+                owner.post(f"/api/v1/playlists/{playlist_id}/tracks", json={"song_id": song_id}).status_code,
+                200,
+            )
+
+        created = owner.post(f"/api/v1/playlists/{playlist_id}/listening-room")
+        self.assertEqual(created.status_code, 201)
+        token = created.json["room_token"]
+        guest = mood_app.app.test_client()
+        guest.post(
+            "/api/auth/register",
+            json={
+                "name": "Room Guest",
+                "email": f"{uuid.uuid4().hex}@example.com",
+                "password": "test-pass-123",
+            },
+        )
+        joined = guest.post(f"/api/v1/listening-rooms/{token}/join")
+        self.assertEqual(joined.status_code, 200)
+        self.assertEqual(len(joined.json["playlist"]["tracks"]), 2)
+
+        current_room = guest.get(f"/api/v1/listening-rooms/{token}").json["room"]
+        synced = guest.put(
+            f"/api/v1/listening-rooms/{token}/state",
+            json={
+                "expected_version": current_room["version"],
+                "state": {
+                    "current_song_id": song_ids[0],
+                    "position_ms": 15000,
+                    "is_playing": True,
+                    "queue": song_ids,
+                },
+            },
+        )
+        self.assertEqual(synced.status_code, 200)
+        self.assertEqual(synced.json["room"]["state"]["position_ms"], 15000)
+        self.assertEqual(len(synced.json["room"]["participants"]), 2)
+        self.assertEqual(owner.get(f"/api/v1/listening-rooms/{token}").json["room"]["version"], synced.json["room"]["version"])
 
     def test_playlist_invites_allow_editor_collaboration_and_revoke_access(self):
         owner = mood_app.app.test_client()
