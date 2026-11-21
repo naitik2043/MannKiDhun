@@ -1,9 +1,10 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AssistantPage from "./AssistantPage.jsx";
 
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
 
@@ -101,7 +102,7 @@ describe("AssistantPage", () => {
     fireEvent.change(screen.getByLabelText("Create a playlist"), {
       target: { value: "Evening Mix" },
     });
-    fireEvent.submit(document.getElementById("assistant-playlists"));
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("created"));
     fireEvent.change(screen.getByRole("combobox", { name: "New collaborator role" }), {
       target: { value: "editor" },
@@ -116,13 +117,13 @@ describe("AssistantPage", () => {
       }),
     );
 
-    fireEvent.change(screen.getAllByLabelText("Listening context (optional)")[0], {
+    fireEvent.change(screen.getByLabelText("Listening context (optional)"), {
       target: { value: "studying" },
     });
     fireEvent.change(screen.getByLabelText("Your music request"), {
       target: { value: "peaceful music" },
     });
-    fireEvent.submit(document.querySelector(".assistant-composer"));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Catalogue Track")).toBeTruthy();
     const chatCall = fetchMock.mock.calls.find(([url]) => url === "/api/v1/assistant/chat");
