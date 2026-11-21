@@ -1259,6 +1259,14 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(response.json["context"], "workout")
         self.assertEqual(recommend.call_args.kwargs["context"], "workout")
 
+    def test_profile_upload_directory_uses_configured_instance_directory(self):
+        expected_directory = Path(self.temporary_directory.name) / "configured-data"
+        with patch.object(mood_app, "INSTANCE_DIR", expected_directory):
+            self.assertEqual(
+                mood_app._profile_upload_directory(),
+                expected_directory / "profile_uploads",
+            )
+
     def test_security_headers_are_present(self):
         response = mood_app.app.test_client().get("/healthz")
 

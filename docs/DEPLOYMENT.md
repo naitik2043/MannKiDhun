@@ -1,37 +1,62 @@
 # Deployment and operations
 
-## Render (free, demo deployment)
+## Render demo deployment
 
-This repository includes a Render Blueprint in `render.yaml`. In the Render dashboard, create a new Blueprint instance for `naitik2043/MannKiDhun` and select the `main` branch. The Blueprint builds the React frontend, installs the Python dependencies, starts Flask with Gunicorn, generates a stable session secret, enables secure cookies, and checks `/healthz`.
+This repository includes a Render Blueprint in \`render.yaml\`. In the Render dashboard, create a Blueprint instance for \`naitik2043/MannKiDhun\` and select the \`main\` branch. The Blueprint installs Python dependencies, builds the React frontend, runs Flask with Gunicorn, generates a stable session secret, enables secure cookies, and checks \`/healthz\`.
 
-The Blueprint uses Render's free web-service plan so it does not create a paid resource. Free services can sleep while idle and their local filesystem is ephemeral. This app stores accounts, playlists, and profile uploads on that filesystem in SQLite and `instance/profile_uploads`; those records and files can be lost on restart or deploy. Use this deployment for a public demo only. For durable user data, move persistence to a managed database and object storage, or use a paid service with a persistent disk after choosing an appropriate plan. Do not collect important account data on the free deployment.
+The Blueprint intentionally uses Render's Free web-service plan. Free services can spin down while idle and their local filesystem is ephemeral. MannKiDhun stores accounts, playlists, listening history, preferences, journal entries, SQLite data, and profile photos on that filesystem. These records and files can be lost after restart, spin-down, or deployment. Treat this configuration as a demo only; do not collect important user data on it.
 
-The bundled model is loaded during startup and requires substantial memory. If Render terminates the service during startup or health checks, inspect the service logs and move to a larger instance before using it.
+## Persistent SQLite storage on Render
 
-## Current status
+The application supports a configurable data directory through \`MANNKIDHUN_DATA_DIR\`. It controls the location of both \`moodwave.sqlite3\` and \`profile_uploads/\`.
 
-The repository includes a GitHub Actions workflow that runs the backend and frontend tests and builds the frontend on pushes and pull requests. The Render Blueprint uses Gunicorn for the demo deployment. PostgreSQL support, email delivery, and automated backup are not included. `python app.py` starts Flask's development server and is for local development/smoke testing only. The app is not configured for durable production user data.
+For a persistent single-instance SQLite deployment:
+
+1. Use a paid Render web service that supports a persistent disk.
+2. Attach a disk to the service and set its mount path to \`/var/data\`.
+3. Add the environment variable \`MANNKIDHUN_DATA_DIR=/var/data\`.
+4. Keep \`MANNKIDHUN_COOKIE_SECURE=1\` and a stable \`MANNKIDHUN_SECRET_KEY\`.
+5. Deploy, verify \`/healthz\`, create a test account, and confirm that its profile photo and data remain after a controlled restart.
+6. Back up the database and rehearse restoring it before treating the instance as production data storage.
+
+The Free Blueprint does not attach a persistent disk. Setting the data-directory variable on a Free service does **not** make its filesystem durable. The application still uses SQLite, so this setup is for one application instance, not horizontally scaled multi-worker production.
+
+For a larger deployment, migrate the SQLite-oriented persistence layer to a managed database and object storage, introduce versioned migrations, and perform load, backup, and restore testing.
+
+## Current deployment status and limitations
+
+GitHub Actions builds the frontend and runs both backend and frontend test suites for pushes and pull requests. The Render Blueprint is configured for automatic deploys from \`main\`. A successful GitHub workflow verifies the repository build and tests; it does not by itself prove that Render's deployment or the external site is healthy.
+
+The bundled expression model is loaded during inference and requires substantial memory. If Render terminates the service during startup or health checks, inspect service logs and consider a larger instance.
+
+PostgreSQL support, email delivery, automated backups, and a versioned migration framework are not included. \`python app.py\` starts Flask's development server and is for local development / smoke testing only.
 
 ## Local build and run
 
 Install the requirements in [README.md](../README.md), then:
 
-```powershell
+\`\`\`powershell
+npm ci
 npm run build
 $pythonEnv = Join-Path $env:LOCALAPPDATA "mannkidhun-venv"
 & "$pythonEnv\Scripts\python.exe" app.py
-```
+\`\`\`
 
-The app serves the built frontend at port 5001 by default. For frontend development, run `npm run dev` in another terminal. Do not run Vite's preview server as a production frontend server.
+The app serves the built frontend on port 5001 by default. For frontend development, run \`npm run dev\` in another terminal.
 
 ## Environment configuration
 
-Use `.env.example` as a reference and inject secrets through the deployment platform; the app does not load `.env` automatically. Set a strong stable `MANNKIDHUN_SECRET_KEY`, `MANNKIDHUN_COOKIE_SECURE=1` behind HTTPS, and `AI_ASSISTANT_API_KEY` only when enabling the optional provider. The assistant provider base URL and model are configurable with `AI_ASSISTANT_API_URL` and `AI_ASSISTANT_MODEL`.
+Use [.env.example](../.env.example) as a reference. The app does not automatically read \`.env\`; inject values through the shell or deployment platform.
 
-The Flask process currently binds to loopback by default. Deployment behind a reverse proxy, forwarded-header trust, HTTPS termination, origin policy, static asset serving, and process supervision must be configured and reviewed before exposure.
+- \`MANNKIDHUN_SECRET_KEY\`: stable session-signing secret.
+- \`MANNKIDHUN_COOKIE_SECURE=1\`: enable secure session cookies behind HTTPS and emit HSTS.
+- \`MANNKIDHUN_DATA_DIR\`: optional persistent data path; defaults to the repository's \`instance/\` directory.
+- \`AI_ASSISTANT_API_KEY\`, \`AI_ASSISTANT_API_URL\`, and \`AI_ASSISTANT_MODEL\`: optional structured-intent provider configuration.
 
-## Health and data
+## Health, backups, and operational readiness
 
-`GET /healthz` checks that the configured SQLite database responds without revealing database details. It is not a full model/provider readiness check. Backups and restores are manual; see [DATABASE.md](./DATABASE.md). There is no migration rollback command: preserve a database backup before schema changes and test changes against a copy first.
+\`GET /healthz\` checks that the configured SQLite database responds without revealing database details. It is not a full model or provider readiness check.
 
-The Render Blueprint deploys automatically from `main` for the free demo. Before using this for durable production accounts, establish a persistent database and file store, backups and restore checks, monitoring, and the other operational controls described above.
+Backups and restores are manual; see [DATABASE.md](./DATABASE.md). There is no migration rollback command: preserve a database backup before schema changes and test changes against a copy first.
+
+Before collecting durable user data, establish persistent storage, tested backups / restore, monitoring, login throttling, distributed rate limiting, a production origin policy, email recovery, dependency scanning, and a security review.

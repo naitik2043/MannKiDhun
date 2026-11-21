@@ -48,4 +48,4 @@ The assistant provider does not generate track names or playback URLs. Only cata
 
 ## Existing capabilities and limits
 
-Authentication, profile/preferences, expression estimation, recommendation ranking, playlists, saved songs, listening history, and playback-state storage have backend APIs. The application does not currently have a full global player, a complete library UI, automated migrations, PostgreSQL support, or production hosting configuration. See the [API reference](./API_DOCUMENTATION.md) and [deployment notes](./DEPLOYMENT.md).
+Authentication, profile/preferences, expression estimation, recommendation ranking, playlists, saved songs, listening history, and playback-state storage have backend APIs and user-facing surfaces. The application does not yet provide a full global player, versioned migrations, PostgreSQL support, durable multi-instance storage, or complete production operational controls. The Render Blueprint is a demo deployment configuration; see the [API reference](./API_DOCUMENTATION.md) and [deployment notes](./DEPLOYMENT.md).

@@ -60,7 +60,14 @@ from recommendation_engine import (
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
-INSTANCE_DIR = BASE_DIR / "instance"
+_configured_data_dir = os.environ.get("MANNKIDHUN_DATA_DIR", "").strip()
+INSTANCE_DIR = (
+    Path(_configured_data_dir).expanduser()
+    if _configured_data_dir
+    else BASE_DIR / "instance"
+)
+if not INSTANCE_DIR.is_absolute():
+    INSTANCE_DIR = (BASE_DIR / INSTANCE_DIR).resolve()
 AUTH_DATABASE = INSTANCE_DIR / "moodwave.sqlite3"
 MOOD_ALIASES = {
     "susurprise": "surprise",
@@ -96,6 +103,22 @@ app.config.update(
     SESSION_REFRESH_EACH_REQUEST=False,
 )
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
+
+
+@app.after_request
+def apply_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(self), microphone=(self), geolocation=()",
+    )
+    if app.config.get("SESSION_COOKIE_SECURE"):
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return response
+
+
 PROFILE_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 PROFILE_IMAGE_MAX_DIMENSION = 4096
 PROFILE_IMAGE_MAX_PIXELS = 16_000_000

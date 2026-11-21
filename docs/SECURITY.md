@@ -4,6 +4,7 @@
 
 - Passwords are stored with Werkzeug password hashing.
 - Session cookies are HttpOnly and SameSite=Lax; Secure cookies are opt-in through `MANNKIDHUN_COOKIE_SECURE=1`.
+- Responses include `X-Content-Type-Options: nosniff`, a strict-origin referrer policy, same-origin framing protection, and a Permissions Policy that limits camera/microphone access to this origin and disables geolocation. HSTS is emitted when secure cookies are enabled.
 - SQL statements use SQLite parameter binding for user-controlled values.
 - Account/library routes use the authenticated user ID for ownership-scoped reads and updates.
 - Password reset tokens are not returned by the forgot-password endpoint. Until email delivery is implemented, password recovery is unavailable.
@@ -21,8 +22,8 @@
 - Password-reset and verification email delivery are not implemented. The reset endpoint cannot currently be used through a normal user flow.
 - CSRF tokens, login throttling, distributed rate limiting, and a production CORS/origin policy are not implemented.
 - `SECRET_KEY` falls back to a newly generated process-local value when unset; deployments must supply a stable secret.
-- Secure cookies require explicit configuration. HTTPS enforcement, reverse-proxy configuration, security headers, and production error monitoring are not configured here.
-- The database is local SQLite; migration versioning, production database support, automated backups, and tested restore procedures are absent.
+- Secure cookies and HSTS require explicit HTTPS configuration. Reverse-proxy trust, HTTPS enforcement, a restrictive Content Security Policy, production error monitoring, and alerting still need deployment-level review.
+- The database is local SQLite. `MANNKIDHUN_DATA_DIR` can place the database and profile uploads on a mounted persistent disk, but migration versioning, managed-database support, automated backups, and tested restore procedures are absent.
 - Dependency vulnerability scanning and automated dependency updates are not configured. GitHub Actions runs tests and builds the frontend, but does not perform security scanning.
 - Assistant request rate limiting is in-memory and is not shared across workers.
 - Model output is not calibrated and has not been evaluated on a labeled, subject-separated dataset. Expression estimates are not verified emotional states.
