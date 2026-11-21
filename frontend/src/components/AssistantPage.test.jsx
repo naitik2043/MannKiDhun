@@ -116,7 +116,7 @@ describe("AssistantPage", () => {
       }),
     );
 
-    fireEvent.change(screen.getByLabelText("Listening context (optional)"), {
+    fireEvent.change(screen.getAllByLabelText("Listening context (optional)")[0], {
       target: { value: "studying" },
     });
     fireEvent.change(screen.getByLabelText("Your music request"), {
