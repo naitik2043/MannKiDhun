@@ -4044,3 +4044,64 @@ html[data-theme="dark"] .mobile-menu-toggle > span {
   border-radius: 8px;
   font: inherit;
 }
+
+.has-global-player {
+  padding-bottom: 190px;
+}
+@media (max-width: 760px) {
+  .has-global-player {
+    padding-bottom: 220px;
+  }
+}
+.assistant-room-panel {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 16px;
+  background: rgba(139, 92, 246, 0.07);
+}
+.assistant-room-heading,
+.assistant-room-invite,
+.assistant-room-participants {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.assistant-room-heading h2 {
+  margin: 2px 0;
+  font-weight: 800;
+}
+.assistant-room-heading p,
+.assistant-room-participants span {
+  margin: 0;
+  color: var(--text-muted, #888);
+  font-size: 13px;
+}
+.assistant-room-kicker {
+  color: #a78bfa !important;
+  font-size: 10px !important;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+.assistant-room-invite input {
+  flex: 1 1 280px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(167, 139, 250, .26);
+  border-radius: 9px;
+  background: rgba(0,0,0,.12);
+  color: inherit;
+}
+.assistant-room-panel button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid rgba(167, 139, 250, .35);
+  border-radius: 9px;
+}
+.assistant-room-participants {
+  justify-content: flex-start;
+}

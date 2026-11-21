@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import "./player.css";
+import "../styles/player.css";
 
 const STORAGE_KEY = "mannkidhun_player_v1";
 const PlayerContext = createContext({
@@ -127,6 +127,11 @@ export function PlayerProvider({ children }) {
 
   const currentSong = currentIndex >= 0 ? queue[currentIndex] || null : null;
 
+  useEffect(() => {
+    document.body.classList.toggle("has-global-player", Boolean(currentSong));
+    return () => document.body.classList.remove("has-global-player");
+  }, [currentSong]);
+
   useEffect(() => { queueRef.current = queue; }, [queue]);
   useEffect(() => { indexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { repeatRef.current = repeatMode; }, [repeatMode]);
@@ -223,6 +228,20 @@ export function PlayerProvider({ children }) {
               ) {
                 setIsPlaying(false);
               } else if (event.data === YT.PlayerState.ENDED) {
+                const completed = queueRef.current[indexRef.current];
+                if (completed && Number.isInteger(Number(completed.id))) {
+                  fetch("/api/v1/users/me/listening-history", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      song_id: Number(completed.id),
+                      event_type: "complete",
+                      source: "global-player",
+                      position_ms: positionRef.current,
+                      duration_ms: Number(completed.duration || 0) * 1000,
+                    }),
+                  }).catch(() => {});
+                }
                 advanceTrack(true);
               }
             },
@@ -360,6 +379,53 @@ export function PlayerProvider({ children }) {
     if (["off", "one", "all"].includes(value)) setRepeatModeState(value);
   }, []);
 
+  useEffect(() => {
+    if (!isPlaying) return undefined;
+    const timer = window.setInterval(() => {
+      const song = queueRef.current[indexRef.current];
+      if (!song || !Number.isInteger(Number(song.id))) return;
+      fetch("/api/v1/users/me/playback-state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_song_id: Number(song.id),
+          position_ms: positionRef.current,
+          queue: queueRef.current.map((item) => Number(item.id)).filter((id) => Number.isInteger(id) && id > 0),
+          repeat_mode: repeatRef.current,
+        }),
+      }).catch(() => {});
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || typeof window.MediaMetadata !== "function") return undefined;
+    if (currentSong) {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: currentSong.title,
+        artist: currentSong.artist,
+        album: currentSong.album || "MannKiDhun",
+        artwork: currentSong.thumbnail_url
+          ? [{ src: currentSong.thumbnail_url, sizes: "512x512", type: "image/jpeg" }]
+          : [],
+      });
+      navigator.mediaSession.setActionHandler("play", () => playerRef.current?.playVideo());
+      navigator.mediaSession.setActionHandler("pause", () => playerRef.current?.pauseVideo());
+      navigator.mediaSession.setActionHandler("previoustrack", () => previousTrack());
+      navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
+      navigator.mediaSession.setActionHandler("seekto", (event) => {
+        if (Number.isFinite(event.seekTime)) playerRef.current?.seekTo(event.seekTime, true);
+      });
+    } else {
+      navigator.mediaSession.metadata = null;
+    }
+    return () => {
+      for (const action of ["play", "pause", "previoustrack", "nexttrack", "seekto"]) {
+        try { navigator.mediaSession.setActionHandler(action, null); } catch { /* Browser support varies. */ }
+      }
+    };
+  }, [currentSong, previousTrack, nextTrack]);
+
   const value = useMemo(() => ({
     queue, currentIndex, currentSong, isPlaying, isReady, positionMs, repeatMode, error,
     playSong, playQueue, addToQueue, updateUpcomingTracks,
@@ -427,7 +493,3 @@ function GlobalPlayerBar({ containerRef }) {
   );
 }
 
-function formatTime(milliseconds) {
-  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}

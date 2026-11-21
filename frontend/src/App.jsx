@@ -150,8 +150,41 @@ function AuthenticatedPage({ theme, toggleTheme, Page }) {
 }
 
 function AppRoutes() {
-  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const path = currentPath === "/" ? "/" : (currentPath.endsWith("/") ? currentPath.slice(0, -1) : currentPath);
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    const updatePath = () => setCurrentPath(window.location.pathname);
+    const handleInternalNavigation = (event) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) return;
+      const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (destination.origin !== window.location.origin) return;
+      if (destination.protocol !== "http:" && destination.protocol !== "https:") return;
+      event.preventDefault();
+      const nextUrl = destination.pathname + destination.search + destination.hash;
+      window.history.pushState({}, "", nextUrl);
+      setCurrentPath(destination.pathname);
+      if (destination.pathname === window.location.pathname && destination.hash) {
+        document.querySelector(destination.hash)?.scrollIntoView({ behavior: "smooth" });
+      }
+    };
+    window.addEventListener("popstate", updatePath);
+    document.addEventListener("click", handleInternalNavigation);
+    return () => {
+      window.removeEventListener("popstate", updatePath);
+      document.removeEventListener("click", handleInternalNavigation);
+    };
+  }, []);
 
   if (path === "/assistant") {
     const inviteParams = new URLSearchParams(window.location.search);
