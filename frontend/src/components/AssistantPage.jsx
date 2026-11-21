@@ -9,6 +9,10 @@ const suggestedPrompts = [
   "Find motivational songs for studying",
 ];
 
+function canEditPlaylist(playlist) {
+  return Boolean(playlist?.is_owner || playlist?.role === "editor" || playlist?.role === "owner");
+}
+
 function AssistantPage({ user, theme, toggleTheme }) {
   const [messages, setMessages] = useState([
     {
@@ -68,6 +72,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
           window.history.replaceState({}, document.title, window.location.pathname);
         } catch (inviteError) {
           window.sessionStorage.removeItem("mannkidhun_pending_playlist_invite");
+          window.history.replaceState({}, document.title, window.location.pathname);
           if (active) setError(inviteError.message || "This playlist invitation could not be accepted.");
         }
       }
@@ -644,7 +649,8 @@ function AssistantPage({ user, theme, toggleTheme }) {
                     )) : <p>No collaborators have joined yet.</p>}
                   </div>
                 ))}
-                <form className="assistant-refine-playlist" onSubmit={refinePlaylist}>
+                {playlists.some(canEditPlaylist) && (
+                  <form className="assistant-refine-playlist" onSubmit={refinePlaylist}>
                   <label>
                     Refine a playlist with words
                     <select
@@ -653,7 +659,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                       required
                     >
                       <option value="">Choose playlist</option>
-                      {playlists.map((playlist) => (
+                      {playlists.filter(canEditPlaylist).map((playlist) => (
                         <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
                       ))}
                     </select>
@@ -665,10 +671,11 @@ function AssistantPage({ user, theme, toggleTheme }) {
                     placeholder="Try “add peaceful music”, “remove last song”, or “move Believer to the top”"
                     aria-label="Playlist refinement instruction"
                   />
-                  <button type="submit" disabled={!refinePlaylistId || refineInstruction.trim().length < 3}>
-                    Refine playlist
-                  </button>
-                </form>
+                    <button type="submit" disabled={!refinePlaylistId || refineInstruction.trim().length < 3}>
+                      Refine playlist
+                    </button>
+                  </form>
+                )}
               </section>
             )}
 
@@ -763,7 +770,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                             <button type="button" onClick={() => sendFeedback(song, "like")}>Like</button>
                             <button type="button" onClick={() => sendFeedback(song, "skip")}>Not for me</button>
                             <button type="button" onClick={() => addToQueue(song)}>Add to queue</button>
-                            {playlists.length > 0 && (
+                            {playlists.some(canEditPlaylist) && (
                               <div className="assistant-playlist-action">
                                 <select
                                   aria-label={`Playlist for ${song.title}`}
@@ -774,7 +781,7 @@ function AssistantPage({ user, theme, toggleTheme }) {
                                   }))}
                                 >
                                   <option value="">Choose playlist</option>
-                                  {playlists.map((playlist) => (
+                                  {playlists.filter(canEditPlaylist).map((playlist) => (
                                     <option key={playlist.id} value={playlist.id}>{playlist.name}</option>
                                   ))}
                                 </select>
