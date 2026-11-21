@@ -2079,7 +2079,11 @@ def create_adaptive_session():
     except (TypeError, ValueError):
         return jsonify({"error": "Session size must be between 3 and 12 tracks."}), 400
 
-    vibe = "neutral" if mode == "explore" else (mood or "neutral")
+    vibe = (
+        "neutral"
+        if mode == "explore"
+        else (mood or CONTEXT_VIBE_FALLBACK.get(context, "neutral"))
+    )
     query_filters = {"vibe": vibe} if mode != "explore" and mood else None
     recommendations = get_user_recommendations(
         str(AUTH_DATABASE),

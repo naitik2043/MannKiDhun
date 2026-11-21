@@ -1247,7 +1247,7 @@ class ApiRouteTests(unittest.TestCase):
             response = client.post(
                 "/api/v1/users/me/adaptive-session",
                 json={
-                    "mode": "explore",
+                    "mode": "match",
                     "context": "workout",
                     "use_preferences": False,
                     "use_history": False,
@@ -1258,6 +1258,7 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["context"], "workout")
         self.assertEqual(recommend.call_args.kwargs["context"], "workout")
+        self.assertEqual(recommend.call_args.kwargs["vibe"], "energetic")
 
     def test_profile_upload_directory_uses_configured_instance_directory(self):
         expected_directory = Path(self.temporary_directory.name) / "configured-data"
